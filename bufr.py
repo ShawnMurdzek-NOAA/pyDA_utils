@@ -63,7 +63,7 @@ class bufrCSV():
         self.df.rename(columns={' nmsg':'nmsg'}, inplace=True)
 
         # Load metadata from JSON file
-        metadata_path = '/'.join(os.path.abspath(inspect.getfile(bufrCSV)).split('/')[:-2])
+        metadata_path = '/'.join(os.path.abspath(inspect.getfile(bufrCSV)).split('/')[:-1])
         self.meta = json.load(open('%s/metadata/bufr_meta.json' % metadata_path, 'r'))
 
     def sample(self, fname, n=2):
@@ -599,7 +599,7 @@ def match_bufr_prec(df, prec_csv='bufr_precision.csv'):
     """
 
     # Open precision CSV file
-    metadata_path = '/'.join(os.path.abspath(inspect.getfile(match_bufr_prec)).split('/')[:-2])
+    metadata_path = '/'.join(os.path.abspath(inspect.getfile(match_bufr_prec)).split('/')[:-1])
     prec_df = pd.read_csv('%s/metadata/%s' % (metadata_path, prec_csv))
 
     # Compute wind speed (in kts) and direction (in deg)
