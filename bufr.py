@@ -24,8 +24,8 @@ from metpy.units import units
 import os
 import inspect
 
-import gsi_fcts as gsi
-import meteo_util as mu
+import pyDA_utils.gsi_fcts as gsi
+import pyDA_utils.meteo_util as mu
 
 
 #---------------------------------------------------------------------------------------------------
