@@ -1,0 +1,11 @@
+
+# Pycache
+./__pycache__
+*.pyc
+
+# Swap files
+*.swp
+
+# Figure files
+*.png
+*.pdf
