@@ -48,16 +48,12 @@ class bufrCSV():
 
     def __init__(self, fname):
    
-        df = pd.read_csv(fname, dtype={'SID':str})
+        df = pd.read_csv(fname, dtype={'SID':str, 'PRVSTG':str, 'SPRVSTG':str})
         df.drop(labels=df.columns[-1], axis=1, inplace=True)
   
         # Set missing values (1e11) to NaN
         self.df = df.where(df != 1e11)
-
-        # Remove single quotes from SIDs
-        sid = self.df['SID'].values
-        for i in range(len(sid)):
-            sid[i] = sid[i].strip("'")
+        self.df = df.where(df != '100000000000.0000')
 
         # Remove space before nmsg
         self.df.rename(columns={' nmsg':'nmsg'}, inplace=True)
@@ -306,21 +302,26 @@ def df_to_csv(df, fname):
 
     """
 
-    # Replace NaNs with 1e11
-    df = df.fillna(1e11)
-
     # Reorder message numbers
     nmsg = df['nmsg'].values
     for i, msg in enumerate(df['nmsg'].unique()):
         nmsg[np.where(nmsg == msg)] = i+1
     df['nmsg'] = nmsg        
 
-    # Place SIDs in quotes (otherwise an error occurs when converting back to BUFR format)
-    sid = df['SID'].values
-    for i in range(len(sid)):
-        if sid[i][0] != "'":
-            sid[i] = "'%s'" % sid[i]
-    df['SID'] = sid
+    # Place strings in quotes (otherwise an error occurs when converting back to BUFR format)
+    # The `tmp == tmp` line checks for NaNs
+    for field in ['SID', 'PRVSTG', 'SPRVSTG']:
+        tmp = df[field].values
+        for j in range(len(tmp)):
+            if (tmp[j] == tmp[j]):
+                if (tmp[j][0] != "'"):
+                    tmp[j] = "'%s'" % tmp[j]
+            else:
+                tmp[j] = "'100000000000.0000'"
+        df[field] = tmp
+    
+    # Replace NaNs with 1e11
+    df = df.fillna(1e11)
 
     # Write to CSV
     df.to_csv(fname, index=False)
