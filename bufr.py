@@ -312,7 +312,7 @@ def df_to_csv(df, fname):
     for field in ['SID', 'PRVSTG', 'SPRVSTG']:
         tmp = np.array(df[field].values, dtype=str)
         for j in range(len(tmp)):
-            if (tmp[j] == tmp[j]):
+            if (tmp[j] != 'nan'):
                 if (tmp[j][0] != "'"):
                     tmp[j] = "'%s'" % tmp[j]
             else:
