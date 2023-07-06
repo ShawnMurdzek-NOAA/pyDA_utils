@@ -310,7 +310,7 @@ def df_to_csv(df, fname):
     # Place strings in quotes (otherwise an error occurs when converting back to BUFR format)
     # The `tmp == tmp` line checks for NaNs
     for field in ['SID', 'PRVSTG', 'SPRVSTG']:
-        tmp = df[field].values
+        tmp = np.array(df[field].values, dtype=str)
         for j in range(len(tmp)):
             if (tmp[j] == tmp[j]):
                 if (tmp[j][0] != "'"):
