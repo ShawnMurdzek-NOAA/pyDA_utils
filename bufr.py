@@ -52,8 +52,7 @@ class bufrCSV():
         df.drop(labels=df.columns[-1], axis=1, inplace=True)
   
         # Set missing values (1e11) to NaN
-        self.df = df.where(df != 1e11)
-        self.df = df.where(df != '100000000000.0000')
+        self.df = df.where(np.logical_and(df != 1e11, df != '100000000000.0000'))
 
         # Remove space before nmsg
         self.df.rename(columns={' nmsg':'nmsg'}, inplace=True)
