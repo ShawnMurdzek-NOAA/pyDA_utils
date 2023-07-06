@@ -310,14 +310,17 @@ def df_to_csv(df, fname):
     # Place strings in quotes (otherwise an error occurs when converting back to BUFR format)
     # The `tmp == tmp` line checks for NaNs
     for field in ['SID', 'PRVSTG', 'SPRVSTG']:
-        tmp = np.array(df[field].values, dtype=str)
+        tmp = df[field].values
+        new = np.empty([len(tmp)], dtype=object)
         for j in range(len(tmp)):
-            if (tmp[j] != 'nan'):
+            if (tmp[j] == tmp[j]):
                 if (tmp[j][0] != "'"):
-                    tmp[j] = "'%s'" % tmp[j]
+                    new[j] = "'%s'" % tmp[j]
+                else:
+                    new[j] = tmp[j]
             else:
-                tmp[j] = "'100000000000.0000'"
-        df[field] = tmp
+                new[j] = "'100000000000.0000'"
+        df[field] = new
     
     # Replace NaNs with 1e11
     df = df.fillna(1e11)
