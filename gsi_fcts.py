@@ -112,7 +112,35 @@ def write_errtable(fname, errors):
     return None
 
 
-def read_diag(fnames):
+def read_sfcobs_uselist(fname):
+    """
+    Read GSD surface obs uselist file as a DataFrame
+
+    Parameters
+    ----------
+    fname : string
+        GSD surface obs uselist filename
+
+    Returns
+    -------
+    uselist_df : pd.DataFrame
+        Contents of the uselist as a DataFrame
+
+    """
+
+    columns = ['SID', 'W_flag', 'T_flag', 'Td_flag', 'PRVSTG', 
+               'T_N', 'T_avg', 'T_bias', 'T_std', 
+               'S_N', 'S_avg', 'S_bias', 'S_std', 
+               'W_N', 'W_avg', 'W_bias', 'W_std', 
+               'Td_N', 'Td_avg', 'Td_bias', 'Td_std', 
+               'start_date', 'start_time', 'end_date', 'end_time']
+
+    uselist_df = pd.read_csv(fname, comment=';', names=columns, delim_whitespace=True)
+
+    return uselist_df
+
+
+def read_diag(fnames, mesonet_uselist=None):
     """
     Read a series of GSI diag netCDF4 files, concatenate, and save into a DataFrame
 
@@ -120,6 +148,8 @@ def read_diag(fnames):
     ----------
     fnames : list of strings
         GSI diag file names
+    mesonet_uselist : string, optional
+        GSD sfcobs uselist. Used to add a new column specifying the network for each mesonet site
  
     Returns
     -------
@@ -143,6 +173,26 @@ def read_diag(fnames):
         partial_df.append(df)
 
     diag_out = pd.concat(partial_df)
+    diag_out.reset_index(drop=True, inplace=True)
+
+    # Add mesonet network (PRVSTG)
+    if mesonet_uselist != None:
+        mesonet_df = read_sfcobs_uselist(mesonet_uselist)
+        mesonet_dict = {key:val for key, val in zip(mesonet_df['SID'].values, 
+                                                    mesonet_df['PRVSTG'].values)}
+        mesonet_sid = list(mesonet_dict.keys())
+
+        prvstg = np.array(['MISSING']*len(diag_out), dtype='U8')
+        all_sid = diag_out['Station_ID'].values
+        for i in diag_out.loc[(diag_out['Observation_Type'] == 188) | 
+                              (diag_out['Observation_Type'] == 195) |
+                              (diag_out['Observation_Type'] == 288) |
+                              (diag_out['Observation_Type'] == 295)].index:
+            s = all_sid[i].decode("utf-8").strip()
+            if s in mesonet_sid:
+                prvstg[i] = mesonet_dict[s]
+        prvstg[prvstg == 'MISSING'] = np.nan
+        diag_out['PRVSTG'] = prvstg
 
     return diag_out
 
