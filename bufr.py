@@ -50,6 +50,10 @@ class bufrCSV():
    
         df = pd.read_csv(fname, dtype={'SID':str, 'PRVSTG':str, 'SPRVSTG':str})
         df.drop(labels=df.columns[-1], axis=1, inplace=True)
+
+        # Pandas sets empty strings to NaNs, but we want to retain these empty strings
+        for field in ['SID', 'PRVSTG', 'SPRVSTG']:
+            df.loc[df[field] != df[field], field] = "''"
   
         # Set missing values (1e11) to NaN
         self.df = df.where(np.logical_and(df != 1e11, df != '100000000000.0000'))
