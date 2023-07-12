@@ -464,18 +464,21 @@ def create_corr_obs_err(ob_df, stdev, auto_dim, partition_dim=None, auto_reg_par
     return error
 
 
-def add_obs_err(df, errtable, ob_typ='all', correlated=None, auto_reg_parm=0.5, min_d=0.01667,
-                partition_dim=None, verbose=True):
+def add_obs_err(df, std_errtable, mean_errtable=None, ob_typ='all', correlated=None, 
+                auto_reg_parm=0.5, min_d=0.01667, partition_dim=None, verbose=True):
     """
     Add random Gaussian errors (correlated or uncorrelated) to observations based on error standard 
-    deviations in errtable
+    deviations in var_errtable
 
     Parameters
     ----------
     df : pd.DataFrame
         Pandas DataFrame with the same format as a BUFR DataFrame
-    errtable : string
-        Name of errtable text file
+    std_errtable : string
+        Name of errtable text file that contains error standard deviations
+    mean_errtable : string, optional
+        Name of errtable text file that contains error means (i.e., bias). 
+        If set to None, use mean = 0.
     ob_typ: 'all' or list, optional
         List of observation types to apply errors to 
     correlated : None, 'POB', or 'DHR'; optional
@@ -507,9 +510,14 @@ def add_obs_err(df, errtable, ob_typ='all', correlated=None, auto_reg_parm=0.5, 
     if ob_typ == 'all':
         ob_typ = np.int32(out_df['TYP'].unique())
 
-    # Read in error table file 
-    etable = gsi.read_errtable(errtable)
+    # Read in error table file(s) 
+    etable = gsi.read_errtable(std_errtable)
     eprs = etable[100]['prs'].values
+    if mean_errtable != None:
+        mean_etable = gsi.read_errtable(mean_errtable)
+        mean_eprs = mean_etable[100]['prs'].values
+        for key in mean_errtable.keys():
+            mean_errtable[key].fillna(0, inplace=True)
 
     # Convert specific humidities to relative humidities in BUFR CSV
     out_df = compute_RH(out_df)
@@ -554,12 +562,19 @@ def add_obs_err(df, errtable, ob_typ='all', correlated=None, auto_reg_parm=0.5, 
                 stdev_fct_p = si.interp1d(eprs[eind], etable[t].loc[eind, err])
                 stdev = stdev_fct_p(out_df.loc[oind, 'POB'])
 
+            # Interpolate error means, if specified
+            if mean_errtable != None:
+                mean_fct_p = si.interp1d(mean_eprs, mean_etable[t].loc[:, err])
+                mean = mean_fct_p(out_df[oind, 'POB'])
+            else:
+                mean = 0
+
             # Compute errors
             if correlated == None:
-                error = create_uncorr_obs_err(np.sum(oind), stdev)
+                error = mean + create_uncorr_obs_err(np.sum(oind), stdev)
             else:
-                error = create_corr_obs_err(out_df.loc[oind].copy(), stdev, correlated, 
-                                            auto_reg_parm=auto_reg_parm, min_d=min_d)
+                error = mean + create_corr_obs_err(out_df.loc[oind].copy(), stdev, correlated, 
+                                                   auto_reg_parm=auto_reg_parm, min_d=min_d)
 
             out_df.loc[oind, ob] = out_df.loc[oind, ob] + error
 
