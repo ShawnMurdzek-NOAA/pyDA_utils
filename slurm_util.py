@@ -27,7 +27,7 @@ class job_list:
         else:
             nrow = len(jobs)
             tmp = {'file':jobs, 'submitted':[False]*nrow, 'completed':[False]*nrow, 
-                   'jobID':np.zeros(nrow)*np.nan, 'tries':np.zeros(nrow, dtype=int)}
+                   'jobID':np.zeros(nrow, dtype=int)*np.nan, 'tries':np.zeros(nrow, dtype=int)}
             self.df = pd.DataFrame(tmp)
 
 
@@ -78,18 +78,23 @@ class job_list:
 
         """
 
+        self.df.reset_index(drop=True, inplace=True)
+        idx = np.where(~self.df['submitted'])[0]
         njobs = job_number(user)
+        njobs_submit = min(max_jobs - njobs, len(idx))
         if verbose:
             print('initial njobs = %d' % njobs)
+            print('max allowed njobs = %d' % max_jobs)
+            print('number potential jobs = %d' % len(idx))
+            print('will submit %d jobs' % njobs_submit)
             print()
 
-        idx = np.where(~self.df['submitted'])
-        for i in range(min(max_jobs - njobs, len(idx))):
-            self.df['jobID'] = int(os.popen('sbatch %s' % self.df['file'].iloc[i]).read().strip().split(' ')[-1])
-            self.df['tries'].iloc[i] = self.df['tries'].iloc[i] + 1
-            self.df['submitted'].iloc[i] = True
+        for i in idx[:njobs_submit]:
+            self.df.loc[i, 'jobID'] = int(os.popen('sbatch %s' % self.df.loc[i, 'file']).read().strip().split(' ')[-1])
+            self.df.loc[i, 'tries'] = self.df.loc[i, 'tries'] + 1
+            self.df.loc[i, 'submitted'] = True
             if verbose:
-                print('submitted job = %d' % self.df['jobID'])
+                print('submitted job = %d' % self.df.loc[i, 'jobID'])
 
         return None        
 
