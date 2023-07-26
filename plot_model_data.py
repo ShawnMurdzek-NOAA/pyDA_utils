@@ -617,7 +617,7 @@ class PlotOutput():
         self.ax.set_ylabel(ylabel)
 
 
-    def skewt(self, lon, lat, hodo=True, barbs=True, thin=5):
+    def skewt(self, lon, lat, hodo=True, barbs=True, thin=5, hodo_range=50.):
         """
         Plot a Skew-T, log-p diagram for the gridpoint closest to (lat, lon)
 
@@ -632,6 +632,8 @@ class PlotOutput():
             Option to plot wind barbs
         thin : integer, optional
             Plot every x wind barb, where x = thin
+        hodo_range : float, optiona
+            Hodograph range (m/s)
     
         """
 
@@ -679,8 +681,14 @@ class PlotOutput():
 
             # Create hodograph axes
             hod = inset_axes(self.skew.ax, '35%', '35%', loc=1) 
-            self.h = Hodograph(hod, component_range=50.)
-            self.h.add_grid(increment=10) 
+            self.h = Hodograph(hod, component_range=hodo_range)
+            if hodo_range <= 10:
+                increment = 2
+            elif hodo_range <= 25:
+                increment = 5
+            else:
+                increment = 10
+            self.h.add_grid(increment=increment) 
  
             # Color-code hodograph based on height AGL
             zbds = [0, 1000, 3000, 6000, 9000]
