@@ -691,6 +691,31 @@ def RH_check(df):
     return df
 
 
+def combine_bufr(df1, df2):
+    """
+    Combine two BUFR CSV DataFrames into one
+
+    Parameters
+    ----------
+    df1 : pd.DataFrame
+        First DataFrame containing BUFR output
+    df2 : pd.DataFrame
+        Second DataFrame containing BUFR output
+
+    Returns
+    -------
+    combined : pd.DataFrame
+        Combined DataFrame
+
+    """
+
+    df2['nmsg'] = df2['nmsg'] + df1['nmsg'].max()
+    combined = pd.concat([df1, df2])
+    combined.reset_index(inplace=True, drop=True)
+
+    return combined 
+
+
 """
 End bufr.py
 """
