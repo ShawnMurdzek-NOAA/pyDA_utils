@@ -81,7 +81,7 @@ class job_list:
         self.df.reset_index(drop=True, inplace=True)
         idx = np.where(~self.df['submitted'])[0]
         njobs = job_number(user)
-        njobs_submit = min(max_jobs - njobs, len(idx))
+        njobs_submit = max(min(max_jobs - njobs, len(idx)), 0)
         if verbose:
             print('initial njobs = %d' % njobs)
             print('max allowed njobs = %d' % max_jobs)
