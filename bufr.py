@@ -65,6 +65,25 @@ class bufrCSV():
         metadata_path = '/'.join(os.path.abspath(inspect.getfile(bufrCSV)).split('/')[:-1])
         self.meta = json.load(open('%s/metadata/bufr_meta.json' % metadata_path, 'r'))
 
+
+    def select_obtypes(self, ob_types):
+        """
+        Subset the prepbufr CSV so that it only contains observations included in the ob_types list
+
+        Parameters
+        ----------
+        ob_types : list of integers
+            Observation types (3-digit numbers) to include. All other observations are discarded.
+
+        """
+       
+        all_types = self.df['TYP'].unique()
+        ob_types = np.array(ob_types, dtype=np.float64)
+        for typ in all_types:
+            if typ not in ob_types:
+                self.df = self.df.loc[~np.isclose(self.df['TYP'].values, typ)]
+
+
     def sample(self, fname, n=2):
         """
         Create a sample prepbufr CSV using only n lines from each unique prepbufr report type
