@@ -357,7 +357,7 @@ class PlotOutput():
             self.ax.gridlines()
 
 
-    def contourf(self, var, ingest_kw={}, cntf_kw={}, cbar_kw={}, label_kw={}):
+    def contourf(self, var, cbar=True, ingest_kw={}, cntf_kw={}, cbar_kw={}, label_kw={}):
         """
         Plot data using a filled contour plot
 
@@ -365,6 +365,8 @@ class PlotOutput():
         ----------
         var : string
             Variable to plot
+        cbar : boolean, optional
+            Option to plot a colorbar
         ingest_kw : dict, optional
             Other keyword arguments passed to _ingest_data (key must be a string)
         cntf_kw : dict, optional
@@ -383,13 +385,14 @@ class PlotOutput():
 
         self.cax = self.ax.contourf(coords[1], coords[0], data, transform=self.proj, **cntf_kw)
 
-        self.cbar = plt.colorbar(self.cax, ax=self.ax, **cbar_kw)
-        self.cbar.set_label('%s%s (%s)' % (self.metadata[ptype]['interp'], 
-                                           self.metadata[ptype]['name'], 
-                                           self.metadata[ptype]['units']), **label_kw)
+        if cbar:
+            self.cbar = plt.colorbar(self.cax, ax=self.ax, **cbar_kw)
+            self.cbar.set_label('%s%s (%s)' % (self.metadata[ptype]['interp'], 
+                                               self.metadata[ptype]['name'], 
+                                               self.metadata[ptype]['units']), **label_kw)
 
 
-    def pcolormesh(self, var, ingest_kw={}, pcm_kw={}, cbar_kw={}, label_kw={}):
+    def pcolormesh(self, var, cbar=True, ingest_kw={}, pcm_kw={}, cbar_kw={}, label_kw={}):
         """
         Plot data using pcolormesh
 
@@ -397,6 +400,8 @@ class PlotOutput():
         ----------
         var : string
             Variable to plot
+        cbar : boolean, optional
+            Option to plot a colorbar
         ingest_kw : dict, optional
             Other keyword arguments passed to _ingest_data (key must be a string)
         cntf_kw : dict, optional
@@ -415,10 +420,11 @@ class PlotOutput():
 
         self.cax = self.ax.pcolormesh(coords[1], coords[0], data, transform=self.proj, **pcm_kw)
 
-        self.cbar = plt.colorbar(self.cax, ax=self.ax, **cbar_kw)
-        self.cbar.set_label('%s%s (%s)' % (self.metadata[ptype]['interp'], 
-                                           self.metadata[ptype]['name'], 
-                                           self.metadata[ptype]['units']), **label_kw)
+        if cbar:
+            self.cbar = plt.colorbar(self.cax, ax=self.ax, **cbar_kw)
+            self.cbar.set_label('%s%s (%s)' % (self.metadata[ptype]['interp'], 
+                                               self.metadata[ptype]['name'], 
+                                               self.metadata[ptype]['units']), **label_kw)
     
     
 
