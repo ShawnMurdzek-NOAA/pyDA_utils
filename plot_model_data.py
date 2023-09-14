@@ -34,6 +34,7 @@ import xarray as xr
 from metpy.plots import SkewT, Hodograph
 import metpy.calc as mc
 from metpy.units import units
+import scipy.ndimage as sn
 
 try:
     import wrf
@@ -122,7 +123,7 @@ class PlotOutput():
 
             
     def _ingest_data(self, var, zind=np.nan, units=None, interp_field=None, interp_lvl=None, 
-                     ptype='none0', diff=False, red_fct=None):
+                     ptype='none0', diff=False, red_fct=None, smooth=False, gauss_sigma=5):
         """
         Extract a single variable to plot and interpolate if needed.
 
@@ -142,8 +143,12 @@ class PlotOutput():
             Plot type. Used as the key to store metadata
         diff : boolean, optional
             Is this a difference plot?
-        red_fct : function
+        red_fct : function, optional
             Function for reduction in the z direction (e.g. np.amax, np.sum, etc.)
+        smooth : boolean, optional
+            Option to smooth output using a Gaussian filter
+        gauss_sigma : float, optional
+            standard deviation for Gaussian filter.
 
         Returns
         -------
@@ -227,7 +232,13 @@ class PlotOutput():
                     data2 = red_fct(self.ds2[var], axis=0)
                 else:
                     data2 = self.ds2[var]
+                if smooth:
+                    data = sn.gaussian_filter(data, gauss_sigma)
+                    data2 = sn.gaussian_filter(data2, gauss_sigma)
                 data = data - data2
+
+        if smooth and not diff:
+            data = sn.gaussian_filter(data, gauss_sigma)
  
         return data, coords, ptype
 
