@@ -580,6 +580,11 @@ def add_obs_err(df, std_errtable, mean_errtable=None, ob_typ='all', correlated=N
             else:
                 stdev_fct_p = si.interp1d(eprs[eind], etable[t].loc[eind, err])
                 stdev = stdev_fct_p(out_df.loc[oind, 'POB'])
+                if t == 153:
+                    print('Type = 153 error variances vary with P, but type 153 obs DO NOT have
+                           corresponding POBs. To prevent all type = 153 obs from being NaN, the
+                           first entry in the errtable will be used for the error variances')
+                    stdev = etable[t].loc[eind[0], err]
 
             # Interpolate error means, if specified
             if mean_errtable != None:
