@@ -12,6 +12,7 @@ Date Created: 18 May 2023
 import xarray as xr
 import pandas as pd
 import numpy as np
+import scipy.stats as ss
 
 
 #---------------------------------------------------------------------------------------------------
@@ -230,6 +231,74 @@ def gsi_flags_table(diag_df, field='Prep_Use_Flag'):
     flag_df.sort_values('Observation_Type', inplace=True)
 
     return flag_df
+
+
+def test_var_f_stat(df1, df2, types=None, pcrit=0.05):
+    """
+    Tests whether the variances between two sets of O-B or O-A distributions are statistically 
+    different using a 2-sided F test
+
+    Parameters
+    ----------
+    df1 : pd.DataFrame
+        First GSI diag DataFrame (created by read_diag)
+    df2 : pd.DataFrame
+        Second GSI diag DataFrame (created by read_diag)
+    types : List, optional
+        Observation types to perform the test on. Three options:
+            1. None: Perform the test on each observation type in the DataFrame separately.
+            2. List of Floats: Perform the test only on the listed observation types separately.
+            3. List of Lists: Perform the test on each group of observation types separately. 
+    pcrit : Float, optional
+        P-value below which the test is considered statistically significant
+        
+
+    Returns
+    -------
+    test_df : pd.DataFrame
+        DataFrame that contains the variances, test statistic, and p-value for each F test
+
+    Notes
+    -----
+    The F test assumes that both sample are Gaussian (e.g., Wilks 2011 pg 172)
+    Reference: https://www.itl.nist.gov/div898/handbook/eda/section3/eda359.htm
+
+    """
+
+    # Initialize dictionary
+    out_dict = {}
+    columns = ['ob_types', 'var1', 'var2', 'F stat', 'CDF']
+    for col in columns:
+        out_dict[col] = []
+
+    # Set types if orginally None
+    if types == None:
+        types = list(np.intersect1d(df1['Observation_Type'].unique(), df2['Observation_Type'].unique()))
+
+    # Perform F test
+    for t in types:
+        var = []
+        for df in [df1, df2]:
+            if type(t) == list:
+                ind = np.zeros(len(df))
+                for sub_t in t:
+                    ind = np.logical_or(ind, df['Observation_Type'] == sub_t)
+            else:
+                ind = df['Observation_Type'] == t
+            var.append(np.var(df['Obs_Minus_Forecast_adjusted'].loc[ind]))
+        fstat = var[0] / var[1]
+        out_dict['CDF'].append(ss.f.cdf(fstat, len(df1)-1, len(df2)-1))  
+        out_dict['var1'].append(var[0])      
+        out_dict['var2'].append(var[1])      
+        out_dict['F stat'].append(fstat)
+        out_dict['ob_types'].append(t)
+
+    test_df = pd.DataFrame(out_dict)
+    test_df['pcrit'] = np.ones(len(test_df)) * pcrit
+    test_df['significant'] = np.logical_or(test_df['CDF'] <= (0.5*pcrit), 
+                                           test_df['CDF'] >= (1-0.5*pcrit))
+
+    return test_df
 
 
 """
