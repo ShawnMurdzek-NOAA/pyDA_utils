@@ -1,7 +1,7 @@
 """
 Real-Data Model Plotting Class
 
-CartoPy Note: CartoPy downloads shapefiles to plot coastlines, state borders, etc. The package used
+CartoPy Note1: CartoPy downloads shapefiles to plot coastlines, state borders, etc. The package used
 to do this does not work on Jet, so these files must be downloaded manually (the only way I've found
 to do this is to download them onto my Mac and upload them to Jet via scp). These shapefiles can
 be downloaded from the following website:
@@ -13,6 +13,12 @@ and must be uploaded to the following directory, then unzipped::
 ~/.local/share/cartopy/shapefiles/natural_earth/<category>/
 
 where <category> is specified in cfeature.NaturalEarthFeature (usually physical or cultural). 
+
+CartoPy Note2: The projection used to create the axes (using `projection`) and the projection used
+to plot the data (using `transform`). Do not need to be the same. `projection` is the projection 
+used for plotting, whereas `transform` describes the projection of the underlying data. Because
+(lat, lon) coordinates are always used, `transform` should always be PlateCarree(). More details
+can be found here: https://stackoverflow.com/questions/42237802/plotting-projected-data-in-other-projectons-using-cartopy
 
 Shawn Murdzek
 shawn.s.murdzek@noaa.gov
@@ -66,7 +72,9 @@ class PlotOutput():
     axnum : integer
         Subplot number
     proj : CartoPy projection, optional
-        Map projection
+        Map projection used for plotting. Does not need to match the map projection of the data (the 
+        map projection of the data is irrelevant because the coordinates used for plotting are 
+        (lat, lon), which is not a projection).
 
     Notes
     -----
@@ -79,7 +87,7 @@ class PlotOutput():
 
     """
 
-    def __init__(self, data, dataset, fig, nrows, ncols, axnum, proj=ccrs.PlateCarree()):
+    def __init__(self, data, dataset, fig, nrows, ncols, axnum, proj=ccrs.Lambert Conformal()):
 
         self.outtype = dataset
         self.fig = fig
@@ -394,7 +402,8 @@ class PlotOutput():
         if not hasattr(self, 'ax'):
             self._create_hcrsxn_ax(data)
 
-        self.cax = self.ax.contourf(coords[1], coords[0], data, transform=self.proj, **cntf_kw)
+        self.cax = self.ax.contourf(coords[1], coords[0], data, transform=ccrs.PlateCarree(), 
+                                    **cntf_kw)
 
         if cbar:
             self.cbar = plt.colorbar(self.cax, ax=self.ax, **cbar_kw)
@@ -429,7 +438,8 @@ class PlotOutput():
         if not hasattr(self, 'ax'):
             self._create_hcrsxn_ax(data)
 
-        self.cax = self.ax.pcolormesh(coords[1], coords[0], data, transform=self.proj, **pcm_kw)
+        self.cax = self.ax.pcolormesh(coords[1], coords[0], data, transform=ccrs.PlateCarree(), 
+                                      **pcm_kw)
 
         if cbar:
             self.cbar = plt.colorbar(self.cax, ax=self.ax, **cbar_kw)
@@ -469,10 +479,11 @@ class PlotOutput():
         if auto:
             mx = np.amax(np.abs(data))
             lvls = np.linspace(-mx, mx, 20) 
-            self.cax = self.ax.contourf(coords[1], coords[0], data, lvls, transform=self.proj, 
-                                        cmap='bwr', **cntf_kw)
+            self.cax = self.ax.contourf(coords[1], coords[0], data, lvls, 
+                                        transform=ccrs.PlateCarree(), cmap='bwr', **cntf_kw)
         else:
-            self.cax = self.ax.contourf(coords[1], coords[0], data, transform=self.proj, **cntf_kw)
+            self.cax = self.ax.contourf(coords[1], coords[0], data, transform=ccrs.PlateCarree(), 
+                                        **cntf_kw)
 
         # Compute RMSD
         rmsd = np.sqrt(np.mean(data*data))
@@ -504,7 +515,8 @@ class PlotOutput():
         if not hasattr(self, 'ax'):
             self._create_hcrsxn_ax(data)
 
-        self.cax = self.ax.contour(coords[1], coords[0], data, transform=self.proj, **cnt_kw)
+        self.cax = self.ax.contour(coords[1], coords[0], data, transform=ccrs.PlateCarree(), 
+                                   **cnt_kw)
 
     
     def barbs(self, xvar, yvar, thin=1, ingest_kw={}, barb_kw={}):
@@ -534,7 +546,7 @@ class PlotOutput():
 
         self.cax = self.ax.barbs(coords[1][::thin, ::thin], coords[0][::thin, ::thin], 
                                  xdata[::thin, ::thin], ydata[::thin, ::thin], 
-                                 transform=self.proj, **barb_kw)
+                                 transform=ccrs.PlateCarree(), **barb_kw)
 
     
     def quiver(self, xvar, yvar, thin=1, ingest_kw={}, qv_kw={}):
@@ -564,7 +576,7 @@ class PlotOutput():
 
         self.cax = self.ax.quiver(coords[1][::thin, ::thin], coords[0][::thin, ::thin], 
                                   xdata[::thin, ::thin], ydata[::thin, ::thin], 
-                                  transform=self.proj, **qv_kw)
+                                  transform=ccrs.PlateCarree(), **qv_kw)
 
 
     def plot(self, lon, lat, plt_kw={}):
@@ -583,7 +595,7 @@ class PlotOutput():
         if not hasattr(self, 'ax'):
             self._create_hcrsxn_ax(data)
 
-        self.cax = self.ax.plot(lon, lat, transform=self.proj, **plt_kw)
+        self.cax = self.ax.plot(lon, lat, transform=ccrs.PlateCarree(), **plt_kw)
 
 
     def cfad(self, var, zvar, bins=None, prs=False, cntf_kw={}, cbar_kw={}, label_kw={}):
