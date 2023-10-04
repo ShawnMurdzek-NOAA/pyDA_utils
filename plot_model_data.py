@@ -87,7 +87,7 @@ class PlotOutput():
 
     """
 
-    def __init__(self, data, dataset, fig, nrows, ncols, axnum, proj=ccrs.Lambert Conformal()):
+    def __init__(self, data, dataset, fig, nrows, ncols, axnum, proj=ccrs.LambertConformal()):
 
         self.outtype = dataset
         self.fig = fig
@@ -755,7 +755,7 @@ class PlotOutput():
 
         """
 
-        self.ax.set_extent([minlon, maxlon, minlat, maxlat], crs=self.proj)
+        self.ax.set_extent([minlon, maxlon, minlat, maxlat])
 
 
     def ax_title(self, txt='', **kwargs):
