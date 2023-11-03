@@ -170,7 +170,8 @@ def read_diag(fnames, mesonet_uselist=None):
         # Drop the Bias_Correction_Terms variable in order to remove the 
         # Bias_Correction_Terms_arr_dim. Without this step, all observations will appear in the
         # output DataFrame 3 times!
-        ds = ds.drop('Bias_Correction_Terms')
+        if 'Bias_Correction_Terms_arr_dim' in list(ds.dims.keys()):
+            ds = ds.drop('Bias_Correction_Terms')
         date = ds.attrs['date_time']
         df = ds.to_dataframe()
         df['date_time'] = [date] * len(df)
