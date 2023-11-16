@@ -265,15 +265,17 @@ def compute_wspd_wdir(df):
     return df
 
 
-def plot_obs_locs(x, y, fig=None, nrows=1, ncols=1, axnum=1, proj=ccrs.PlateCarree(), 
-                  borders=True, **kwargs):
+def plot_obs(bufr_df, colorcode=None, fig=None, nrows=1, ncols=1, axnum=1, 
+             proj=ccrs.LambertConformal(), borders=True, scale='50m', **kwargs):
     """
     Plot observation locations using CartoPy.
 
     Parameters
     ----------
-    x, y : float
-        Observation locations (deg E, deg N)
+    bufr_df : pd.DataFrame
+        Input BUFR data as a DataFrame
+    colorcode : string, optional
+        Color-code observations by a certain value. Set to None if not used.
     fig : matplotlib.pyplot.figure, optional
         Figure object to add axes to
     nrows, ncols, axnum : integer, optional
@@ -282,8 +284,10 @@ def plot_obs_locs(x, y, fig=None, nrows=1, ncols=1, axnum=1, proj=ccrs.PlateCarr
         CartoPy map projection
     borders : boolean, optional
         Option to add country borders
+    scale : string, optional
+        Scale for the map features (e.g., coastlines)
     **kwargs : optional
-        Other keyword arguments passed to matplotlib.pyplot.plot()
+        Other keyword arguments passed to matplotlib.pyplot.scatter()
 
     Returns
     -------
@@ -298,11 +302,23 @@ def plot_obs_locs(x, y, fig=None, nrows=1, ncols=1, axnum=1, proj=ccrs.PlateCarr
     ax = fig.add_subplot(nrows, ncols, axnum, projection=proj)
 
     # Add map features
-    ax.coastlines('50m')
+    ax.coastlines(scale)
     if borders:
-        ax.add_feature(cfeature.BORDERS)
+        borders = cfeature.NaturalEarthFeature(category='cultural',
+                                               scale=scale,
+                                               facecolor='none',
+                                               name='admin_1_states_provinces')
+        ax.add_feature(borders)
 
-    ax.plot(x, y, transform=proj, **kwargs)
+    # Plot data
+    if colorcode:
+        plot_df = bufr_df.loc[~np.isnan(bufr_df[colorcode])].copy()
+        cax = ax.scatter(plot_df['XOB'], plot_df['YOB'], c=plot_df[colorcode], 
+                         transform=ccrs.PlateCarree(), **kwargs)
+        cbar = plt.colorbar(cax, ax=ax)
+        cbar.set_label(colorcode, size=14)
+    else:
+        ax.scatter(plot_df['XOB'], plot_df['YOB'], transform=ccrs.PlateCarree(), **kwargs)
 
     return ax
 
