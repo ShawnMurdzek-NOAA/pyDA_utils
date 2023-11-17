@@ -130,8 +130,9 @@ class PlotOutput():
             self.time = (itime + delta).strftime('%Y%m%d %H:%M:%S UTC')
 
             
-    def _ingest_data(self, var, zind=np.nan, units=None, interp_field=None, interp_lvl=None, 
-                     ptype='none0', diff=False, red_fct=None, smooth=False, gauss_sigma=5):
+    def _ingest_data(self, var, zind=[np.nan, np.nan], units=None, interp_field=None, interp_lvl=None, 
+                     ptype='none0', diff=False, red_fct=None, smooth=False, gauss_sigma=5,
+                     indices=[None, None]):
         """
         Extract a single variable to plot and interpolate if needed.
 
@@ -139,8 +140,8 @@ class PlotOutput():
         ----------
         var : string
             Variable from model output file to plot
-        zind : integer, optional
-            Index in z-direction
+        zind : list of integers, optional
+            Index in z-direction. Contains one value for each dataset 
         units : string, optional
             Units for var (WRF only)
         interp_field : string, optional
@@ -157,6 +158,11 @@ class PlotOutput():
             Option to smooth output using a Gaussian filter
         gauss_sigma : float, optional
             standard deviation for Gaussian filter.
+        indices : list, optional
+            Indices to use for data when plotting. Has three levels. Outer level is the dataset
+            (one element for single data, two element for difference plots). Intermediate level is
+            the two horizontal dimensions. Inner level is the actual indices in [start, stop, step]
+            format.
 
         Returns
         -------
@@ -214,8 +220,8 @@ class PlotOutput():
             data = wrf.to_np(data)
 
         elif (self.outtype == 'upp' or self.outtype == 'stage4'):
-            if not np.isnan(zind):
-                data = self.ds[var][zind, :, :]
+            if not np.isnan(zind[0]):
+                data = self.ds[var][zind[0], :, :]
             else:
                 data = self.ds[var]
 
@@ -231,15 +237,23 @@ class PlotOutput():
             # Perform reduction in vertical
             if red_fct != None:
                 data = red_fct(data, axis=0)
+
+            # Subset data using provided indices
+            if indices[0] != None:
+                data = data[indices[0][0][0]:indices[0][0][1]:indices[0][0][2],
+                            indices[0][1][0]:indices[0][1][1]:indices[0][1][2]]
  
             # Create difference fields
             if diff:
-                if not np.isnan(zind):
-                    data2 = self.ds2[var][zind, :, :]
+                if not np.isnan(zind[1]):
+                    data2 = self.ds2[var][zind[1], :, :]
                 elif red_fct != None:
                     data2 = red_fct(self.ds2[var], axis=0)
                 else:
                     data2 = self.ds2[var]
+                if indices[1] != None:
+                    data2 = data2[indices[1][0][0]:indices[1][0][1]:indices[1][0][2],
+                                  indices[1][1][0]:indices[1][1][1]:indices[1][1][2]]
                 if smooth:
                     data = sn.gaussian_filter(data, gauss_sigma)
                     data2 = sn.gaussian_filter(data2, gauss_sigma)
