@@ -141,9 +141,9 @@ def read_sfcobs_uselist(fname):
     return uselist_df
 
 
-def read_diag(fnames, mesonet_uselist=None):
+def read_diag(fnames, mesonet_uselist=None, ftype='netcdf', date_time=[None]):
     """
-    Read a series of GSI diag netCDF4 files, concatenate, and save into a DataFrame
+    Read a series of GSI diag files, concatenate, and save into a DataFrame
 
     Parameters
     ----------
@@ -151,7 +151,12 @@ def read_diag(fnames, mesonet_uselist=None):
         GSI diag file names
     mesonet_uselist : string, optional
         GSD sfcobs uselist. Used to add a new column specifying the network for each mesonet site
- 
+    ftype : string, optional
+        GSI diag file type ('netcdf' or 'text') 
+    date_time : list of integers
+        Date and time of the analysis reported in the diag file (YYYYMMDDHH). Only used if ftype = 
+        'text'.
+
     Returns
     -------
     diag_out : pd.DataFrame
@@ -161,23 +166,49 @@ def read_diag(fnames, mesonet_uselist=None):
 
     # Read in each diag file and convert to DataFrame
     partial_df = []
-    for f in fnames:
-        try:
-            ds = xr.open_dataset(f, engine='netcdf4')
-        except FileNotFoundError:
-            print('GSI diag file missing: %s' % f)
-            continue
-        # Drop the Bias_Correction_Terms variable in order to remove the 
-        # Bias_Correction_Terms_arr_dim. Without this step, all observations will appear in the
-        # output DataFrame 3 times!
-        if 'Bias_Correction_Terms_arr_dim' in list(ds.dims.keys()):
-            ds = ds.drop('Bias_Correction_Terms')
-        date = ds.attrs['date_time']
-        df = ds.to_dataframe()
-        df['date_time'] = [date] * len(df)
-        df['var'] = [f.split('_')[-2]] * len(df)
-        partial_df.append(df)
 
+    if ftype == 'netcdf':
+        for f in fnames:
+            try:
+                ds = xr.open_dataset(f, engine='netcdf4')
+            except FileNotFoundError:
+                print('GSI diag file missing: %s' % f)
+                continue
+            # Drop the Bias_Correction_Terms variable in order to remove the 
+            # Bias_Correction_Terms_arr_dim. Without this step, all observations will appear in the
+            # output DataFrame 3 times!
+            if 'Bias_Correction_Terms_arr_dim' in list(ds.dims.keys()):
+                ds = ds.drop('Bias_Correction_Terms')
+            date = ds.attrs['date_time']
+            df = ds.to_dataframe()
+            df['date_time'] = [date] * len(df)
+            df['var'] = [f.split('_')[-2]] * len(df)
+            partial_df.append(df)
+
+    elif ftype == 'text':
+        cols = ['Observation_Class', 'null1', 'Station_ID', 'null2', 'Observation_Type', 'Time', 
+                'Latitude', 'Longitude', 'Pressure', 'Use_Flag', 'tmp0', 'tmp1', 'tmp2', 'tmp3', 
+                'tmp4']
+        for i, f in enumerate(fnames):
+            try:
+                df = pd.read_csv(f, delim_whitespace=True, names=cols)
+            except FileNotFoundError:
+                print('GSI diag file missing: %s' % f)
+                continue
+            df.drop(['null1', 'null2'], axis=1, inplace=True)
+            # Separate out obs and O-F for winds in an effort to match the netcdf nomenclature
+            for j, col in enumerate(['Observation', 'Obs_Minus_Forecast']):
+                df[col] = df['tmp%d' % j]
+                df['u_'+col] = df['tmp%d' % j]
+                df['v_'+col] = df['tmp%d' % (j+2)]
+                df.loc[df['Observation_Class'] == 'uv', col] = np.nan
+                df.loc[df['Observation_Class'] != 'uv', 'u_'+col] = np.nan
+                df.loc[df['Observation_Class'] != 'uv', 'v_'+col] = np.nan
+            df.drop(['tmp%d' % j for j in range(5)], axis=1, inplace=True)
+            if date_time[0] != None:
+                df['date_time'] = date_time[i]
+            partial_df.append(df)
+    
     diag_out = pd.concat(partial_df)
     diag_out.reset_index(drop=True, inplace=True)
 
