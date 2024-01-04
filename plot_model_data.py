@@ -509,7 +509,7 @@ class PlotOutput():
                                                                rmsd), **label_kw)
 
 
-    def contour(self, var, ingest_kw={}, cnt_kw={}):
+    def contour(self, var, label=False, ingest_kw={}, cnt_kw={}, label_kw={}):
         """
         Plot data using contours
 
@@ -517,10 +517,14 @@ class PlotOutput():
         ----------
         var : string
             Variable from model output file to plot
+        label : boolean, optional
+            Option to add contour labels
         ingest_kw : dict, optional
             Other keyword arguments passed to _ingest_data (key must be a string)
         cnt_kw : dict, optional
             Other keyword arguments passed to contour (key must be a string)
+        cnt_kw : dict, optional
+            Other keyword arguments passed to contour labels (key must be a string)
 
         """
 
@@ -531,6 +535,13 @@ class PlotOutput():
 
         self.cax = self.ax.contour(coords[1], coords[0], data, transform=ccrs.PlateCarree(), 
                                    **cnt_kw)
+
+        if label:
+            all_txt = self.ax.clabel(self.cax, **label_kw)
+
+            # Set pad to 0 so that inline_spacing can be used
+            for txt in all_txt:
+                txt.set_bbox(dict(boxstyle='square,pad=0', fc='none', ec='none'))
 
     
     def barbs(self, xvar, yvar, thin=1, ingest_kw={}, barb_kw={}):
