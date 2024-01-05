@@ -671,7 +671,9 @@ class PlotOutput():
         self.ax.set_ylabel(ylabel)
 
 
-    def skewt(self, lon, lat, hodo=True, barbs=True, thin=5, hodo_range=50.):
+    def skewt(self, lon, lat, hodo=True, barbs=True, thin=5, hodo_range=50., skew=None, 
+              hodo_ax=None, Tplot_kw={'linewidth':2.5, 'color':'r'}, 
+              TDplot_kw={'linewidth':2.5, 'color':'b'}, Hplot_kw={'linewidth':2}):
         """
         Plot a Skew-T, log-p diagram for the gridpoint closest to (lat, lon)
 
@@ -686,9 +688,19 @@ class PlotOutput():
             Option to plot wind barbs
         thin : integer, optional
             Plot every x wind barb, where x = thin
-        hodo_range : float, optiona
+        hodo_range : float, optional
             Hodograph range (m/s)
-    
+        skew : metpy.plots.SkewT object, optional
+            SkewT object to plot sounding on. Set to None to create a new SkewT object
+        hodo_ax : metpy.plots.Hodograph object, optional
+            Hodograph object to plot hodograph on. Set to None to create a new subset axes
+        Tplot_kw : dict, optional
+            Other keyword arguments passed to pyplot.plot when plotting temperature (key must be a string)
+        TDplot_kw : dict, optional
+            Other keyword arguments passed to pyplot.plot when plotting dewpoint (key must be a string)
+        Hplot_kw : dict, optional
+            Other keyword arguments passed to pyplot.plot when plotting hodograph (key must be a string)
+
         """
 
         # Determine indices closest to (lat, lon) coordinate
@@ -719,30 +731,35 @@ class PlotOutput():
             time = self.time
 
         # Create figure
-        self.skew = SkewT(self.fig, rotation=45)
+        if skew == None:
+            self.skew = SkewT(self.fig, rotation=45)
+            self.skew.ax.set_xlim(-40, 60)
+            self.skew.ax.set_ylim(1000, 100)
+        else:
+            self.skew = skew
 
-        self.skew.plot(p, T, 'r', linewidth=2.5)        
-        self.skew.plot(p, Td, 'b', linewidth=2.5)        
+        self.skew.plot(p, T, **Tplot_kw)        
+        self.skew.plot(p, Td, **TDplot_kw)        
 
         self.skew.plot_dry_adiabats(linewidth=0.75)
         self.skew.plot_moist_adiabats(linewidth=0.75)
         self.skew.plot_mixing_lines(linewidth=0.75)
 
-        self.skew.ax.set_xlim(-40, 60)
-        self.skew.ax.set_ylim(1000, 100)
-
         if hodo:
 
             # Create hodograph axes
-            hod = inset_axes(self.skew.ax, '35%', '35%', loc=1) 
-            self.h = Hodograph(hod, component_range=hodo_range)
-            if hodo_range <= 10:
-                increment = 2
-            elif hodo_range <= 25:
-                increment = 5
+            if hodo_ax == None:
+                hod = inset_axes(self.skew.ax, '35%', '35%', loc=1) 
+                self.h = Hodograph(hod, component_range=hodo_range)
+                if hodo_range <= 10:
+                    increment = 2
+                elif hodo_range <= 25:
+                    increment = 5
+                else:
+                    increment = 10
+                self.h.add_grid(increment=increment) 
             else:
-                increment = 10
-            self.h.add_grid(increment=increment) 
+                self.h = hodo_ax
  
             # Color-code hodograph based on height AGL
             zbds = [0, 1000, 3000, 6000, 9000]
@@ -750,7 +767,7 @@ class PlotOutput():
             for zi, zf, c in zip(zbds[:-1], zbds[1:], colors):
                 ind = np.where(np.logical_and(z >= zi, z < zf))[0]
                 ind = np.append(ind, ind[-1]+1)
-                self.h.plot(u[ind], v[ind], c=c, linewidth=2)
+                self.h.plot(u[ind], v[ind], c=c, **Hplot_kw)
             ind = np.where(z >= zbds[-1])[0]
             self.h.plot(u[ind], v[ind], c='goldenrod', linewidth=2) 
 
@@ -759,12 +776,13 @@ class PlotOutput():
             self.skew.plot_barbs(p[:imax:thin], u[:imax:thin], v[:imax:thin])
 
         # Add title
-        loc = '(%.3f $^{\circ}$N, %.3f $^{\circ}$E)' % (lat, lon)
-        if (hodo or barbs):
-            ttl = ('%s\n' % time) + r'$T$ ($^{\circ}$C), $T_{d}$ ($^{\circ}$C), wind (m s$^{-1}$) at %s' % loc
-        else:
-            ttl = ('%s\n' % time) + r'$T$ ($^{\circ}$C), $T_{d}$ ($^{\circ}$C) at %s' % loc
-        self.skew.ax.set_title(ttl)
+        if skew == None:
+            loc = '(%.3f $^{\circ}$N, %.3f $^{\circ}$E)' % (lat, lon)
+            if (hodo or barbs):
+                ttl = ('%s\n' % time) + r'$T$ ($^{\circ}$C), $T_{d}$ ($^{\circ}$C), wind (m s$^{-1}$) at %s' % loc
+            else:
+                ttl = ('%s\n' % time) + r'$T$ ($^{\circ}$C), $T_{d}$ ($^{\circ}$C) at %s' % loc
+            self.skew.ax.set_title(ttl)
  
 
     def set_lim(self, minlat, maxlat, minlon, maxlon):
