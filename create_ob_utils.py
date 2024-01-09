@@ -12,6 +12,7 @@ Date Created: 22 November 2022
 import numpy as np
 import pandas as pd
 import os
+import subprocess
 
 
 #---------------------------------------------------------------------------------------------------
@@ -281,11 +282,9 @@ def check_wind_ref_frame(fname):
 
     """
 
-    os.system('module load wgrib2 && wgrib2 -vector_dir {f} > tmp.out'.format(f=fname))
-    fptr = open('tmp.out', 'r')
-    rot = [s.strip().split('(')[-1][:-1] for s in fptr.readlines()]
-    fptr.close()
-    os.system('rm tmp.out')
+    raw_out = subprocess.check_output('module load wgrib2 && wgrib2 -vector_dir {f}'.format(f=fname), 
+                                      shell=True)
+    rot = [s.split('(')[-1][:-4] for s in str(raw_out).split('\n')]
 
     is_earth_rel = ('N/S' in rot) and ('grid' not in rot)
 
