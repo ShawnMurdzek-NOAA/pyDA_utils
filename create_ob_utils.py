@@ -11,6 +11,7 @@ Date Created: 22 November 2022
 
 import numpy as np
 import pandas as pd
+import os
 
 
 #---------------------------------------------------------------------------------------------------
@@ -261,6 +262,34 @@ def interp_wrf_1d(a1d, ob_subset, i0_name='ki0', var='POB', itype='log'):
     val = _linear_interp(a1d[i0], a1d[i0+1], wgt)
 
     return val, wgt
+
+
+def check_wind_ref_frame(fname):
+    """
+    Check whether the winds from a GRIB2 file are in grid-relative or earth-relative reference
+    frame
+
+    Parameters
+    ----------
+    fname : string
+        Filename
+
+    Returns
+    -------
+    is_earth_rel : boolean
+        True if winds are earth-relative, False otherwise
+
+    """
+
+    os.system('module load wgrib2 && wgrib2 -vector_dir {f} > tmp.out'.format(f=fname))
+    fptr = open('tmp.out', 'r')
+    rot = [s.strip().split('(')[-1][:-1] for s in fptr.readlines()]
+    fptr.close()
+    os.system('rm tmp.out')
+
+    is_earth_rel = ('N/S' in rot) and ('grid' not in rot)
+
+    return is_earth_rel
 
 
 """
