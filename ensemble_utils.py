@@ -236,7 +236,7 @@ class ensemble():
         return be_cov, be_corr
 
    
-    def _subset_bufr(self, subset, nonan_field):
+    def _subset_bufr(self, subset, nonan_field, DHR=0):
         """
         Subset BUFR obs to only contin certain ob subsets in a certain domain with a certain field
         is not NaN
@@ -247,7 +247,10 @@ class ensemble():
             List of observation subsets to retain
         nonan_field : string
             Only retain rows if this field is not a NaN
- 
+        DHR : float, optional
+            If multiple obs exist for a single SID, only retain the obs closest to DHR. Set to NaN
+            to turn off 
+
         Returns
         -------
         red_ob_csv : pd.DataFrame
@@ -273,6 +276,13 @@ class ensemble():
         # Only retain rows where the nonan_field is not a NaN
         red_ob_csv = red_ob_csv.loc[~np.isnan(red_ob_csv[nonan_field])]
         red_ob_csv.reset_index(inplace=True, drop=True)
+
+        # Only retain the single ob closest to DHR for each site
+        if ~np.isnan(DHR):
+            all_sid = np.unique(red_ob_csv['SID'])
+            keep_idx = [np.abs(red_ob_csv['DHR'].loc[red_ob_csv['SID'] == s] - DHR).idxmin() for s in all_sid]
+            red_ob_csv = red_ob_csv.loc[keep_idx]
+            red_ob_csv.reset_index(inplace=True, drop=True)
 
         return red_ob_csv 
 
