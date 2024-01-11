@@ -63,3 +63,8 @@ class TestEnsemble():
 
         # Check that only a single ob is retained for each SID
         assert np.array_equal(np.unique(subset_bufr['SID']), subset_bufr['SID'])
+
+
+"""
+End test_ensemble_utils.py
+"""
