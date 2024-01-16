@@ -15,6 +15,7 @@ import datetime as dt
 import cartopy.crs as ccrs
 import cartopy.feature as cfeature
 import scipy.interpolate as si
+import pandas as pd
 
 import pyDA_utils.plot_model_data as pmd
 import pyDA_utils.bufr as bufr
@@ -328,7 +329,7 @@ class ensemble():
 
     def interp_model_2d(self, field, lat, lon, zind=np.nan, method='nearest', verbose=False):
         """
-        Interpolate model output to observation locations
+        Interpolate model output to certain locations
 
         Parameters
         ----------
@@ -361,15 +362,15 @@ class ensemble():
             if verbose:
                 print('Performing interpolation for {n}'.format(n=mem))
             if np.isnan(zind):
-                z = self.subset_ds[mem][field].values
+                z = np.ravel(self.subset_ds[mem][field].values)
             else:
-                z = self.subset_ds[mem][field][zind, :, :].values
+                z = np.ravel(self.subset_ds[mem][field][zind, :, :].values)
             if method == 'nearest':
                 interp_fct = si.NearestNDInterpolator(list(zip(mlon1d, mlat1d)), z)
             elif method == 'linear':
                 interp_fct = si.LinearNDInterpolator(list(zip(mlon1d, mlat1d)), z)
             else:
-                print("Only 'nearest' interpolation is currently supported")        
+                print("Only 'nearest' and 'linear' interpolation are currently supported")        
             interp_ens_dict[mem] = interp_fct(lon, lat)
 
         interp_ens_df = pd.DataFrame(interp_ens_dict)

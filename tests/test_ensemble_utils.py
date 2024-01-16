@@ -12,6 +12,7 @@ shawn.s.murdzek@noaa.gov
 import numpy as np
 import pytest
 import yaml
+import pandas as pd
 
 import pyDA_utils.ensemble_utils as eu
 
@@ -63,6 +64,33 @@ class TestEnsemble():
 
         # Check that only a single ob is retained for each SID
         assert np.array_equal(np.unique(subset_bufr['SID']), subset_bufr['SID'])
+
+
+    def test_interp_model_2d(self, sample_ens):
+        mem = sample_ens.mem_names[0]
+        model_lat = np.ravel(sample_ens.subset_ds[mem]['gridlat_0'][2:-2:5, 2:-2:5].values)
+        model_lon = np.ravel(sample_ens.subset_ds[mem]['gridlon_0'][2:-2:5, 2:-2:5].values)
+        ob_lat = model_lat + np.random.uniform(-0.002, 0.002, size=model_lat.size)
+        ob_lon = model_lon + np.random.uniform(-0.002, 0.002, size=model_lon.size)
+
+        # Test nearest neighbor interpolation
+        # Use model lat coordinates with small perturbations as test data
+        # Assuming 1 km = 0.01 deg, the distance between two adjacent gridpoints should be ~0.03 deg
+        # B/c ob locations differ from model gridpoints by no more than 0.002*sqrt(2) deg, model_lat
+        # should match the interpolated lats
+        near_neigh_lat_df = sample_ens.interp_model_2d('gridlat_0', ob_lat, ob_lon, method='nearest')
+        assert np.allclose(near_neigh_lat_df[mem].values, model_lat)
+
+        # Test linear interpolation
+        # Create some random linear data
+        def create_linear_data(lat, lon):
+            return 2*lat + 3*lon + 4
+        for m in sample_ens.mem_names:
+            sample_ens.subset_ds[m]['interp_test'] = create_linear_data(sample_ens.subset_ds[m]['gridlat_0'],
+                                                                        sample_ens.subset_ds[m]['gridlon_0'])
+        linear_df = sample_ens.interp_model_2d('interp_test', ob_lat, ob_lon, method='linear')
+        assert np.allclose(linear_df[mem].values, create_linear_data(ob_lat, ob_lon))
+
 
 
 """
