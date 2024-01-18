@@ -414,17 +414,31 @@ class ensemble():
             if verbose:
                 print('plotting {mem}'.format(mem=key))
             plot_obj = pmd.PlotOutput([self.subset_ds[key]], 'upp', fig, nrows, ncols, i+1)
-            plot_obj.contourf(field, cbar=False, **plt_kw)
+
+            # Skip plotting if < 2 NaN
+            if np.isnan(klvl):
+                make_plot = np.sum(~np.isnan(self.subset_ds[key][field])) > 1
+            else:
+                make_plot = np.sum(~np.isnan(self.subset_ds[key][field][klvl, :, :])) > 1
+            if make_plot:
+                plot_obj.contourf(field, cbar=False, **plt_kw)
+                cax = plot_obj.cax
+                meta = plot_obj.metadata['contourf0']
+            else:
+                if verbose:
+                    print('skipping plot for {mem}'.format(mem=key))
+                plot_obj.ax = fig.add_subplot(nrows, ncols, i+1, projection=plot_obj.proj)
+
             plot_obj.config_ax(grid=False)
             plot_obj.set_lim(self.lat_limits[0], self.lat_limits[1], 
                              self.lon_limits[0], self.lon_limits[1])
             plot_obj.ax.set_title(key, size=14)
     
-        cb_ax = fig.add_axes([0.9, 0.02, 0.03, 0.9])
-        cbar = plt.colorbar(plot_obj.cax, cax=cb_ax, orientation='vertical', aspect=35)
-        cbar.set_label('%s%s (%s)' % (plot_obj.metadata['contourf0']['interp'], 
-                                      plot_obj.metadata['contourf0']['name'], 
-                                      plot_obj.metadata['contourf0']['units']), size=14)
+        cb_ax = fig.add_axes([0.915, 0.02, 0.02, 0.9])
+        cbar = plt.colorbar(cax, cax=cb_ax, orientation='vertical', aspect=35)
+        cbar.set_label('%s%s (%s)' % (meta['interp'], 
+                                      meta['name'], 
+                                      meta['units']), size=14)
         if ~np.isnan(klvl):
             tmp_ds = self.subset_ds[self.mem_names[0]]
             title = '{t} (avg z = {z:.1f} m)'.format(t=title, z=float(np.mean(tmp_ds['HGT_P0_L105_GLC0'][klvl, :, :] -
