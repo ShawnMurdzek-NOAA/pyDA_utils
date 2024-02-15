@@ -10,6 +10,7 @@ shawn.s.murdzek@noaa.gov
 
 import xarray as xr
 import matplotlib.pyplot as plt
+import matplotlib.path as mplPath
 import numpy as np
 import datetime as dt
 import cartopy.crs as ccrs
@@ -59,7 +60,7 @@ class ensemble():
     """
 
     def __init__(self, fnames, verbose=True, extra_fnames={}, extra_fields=[], bufr_csv_fname=None,
-                 lat_limits=[21, 53], lon_limits=[-134.1, -60.9], zind=list(range(1, 66)), 
+                 lat_limits=[10, 53], lon_limits=[-134.1, -60.9], zind=list(range(1, 66)), 
                  zfield='lv_HYBL2', state_fields=[], bec=False):
 
         self.fnames = fnames
@@ -275,6 +276,40 @@ class ensemble():
            
         return be_cov, be_corr
 
+
+    def check_pts_in_subset_domain(self, points):
+        """
+        Check to see if points lie within the subset domain
+
+        Parameters
+        ----------
+        points : array
+            2D array of (lon, lat) point to check
+
+        Returns
+        -------
+        indomain : array
+            1D boolean array where values are True is points lie in the domain
+
+        """
+
+        # Extract (lat, lon) coordinates and grid dimensions
+        lon2d = self.subset_ds[self.mem_names[0]]['gridlon_0'].values
+        lat2d = self.subset_ds[self.mem_names[0]]['gridlat_0'].values
+        idim, jdim = lon2d.shape
+
+        # Define points along the edge of the domain
+        edge_pts = [[lon2d[i, j], lat2d[i, j]] 
+                    for i, j in zip(list(range(idim)) + [idim-1]*jdim + list(range(idim-1, -1, -1)) + [0]*jdim,
+                                    [0]*idim + list(range(jdim)) + [jdim-1]*idim + list(range(jdim-1, -1, -1)))]
+
+        # Create path object
+        path = mplPath.Path(edge_pts)
+
+        indomain = path.contains_points(points)
+
+        return indomain
+
    
     def _subset_bufr(self, subset, nonan_field, DHR=0):
         """
@@ -312,7 +347,13 @@ class ensemble():
                                (red_ob_csv['XOB'] <= (360 + self.lon_limits[1])))[0]
         red_ob_csv = red_ob_csv.iloc[spatial_idx, :]
         red_ob_csv.reset_index(inplace=True, drop=True)
-     
+    
+        # Remove any additional points that might life outside the domain
+        ob_pts = [[x, y] for x, y in zip(red_ob_csv['XOB'] - 360., red_ob_csv['YOB'])]
+        spatial_idx2 = self.check_pts_in_subset_domain(ob_pts)
+        red_ob_csv = red_ob_csv.iloc[spatial_idx2, :]
+        red_ob_csv.reset_index(inplace=True, drop=True)
+ 
         # Only retain rows where the nonan_field is not a NaN
         red_ob_csv = red_ob_csv.loc[~np.isnan(red_ob_csv[nonan_field])]
         red_ob_csv.reset_index(inplace=True, drop=True)

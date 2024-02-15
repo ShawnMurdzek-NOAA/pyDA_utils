@@ -49,9 +49,25 @@ class TestEnsemble():
                            bec=True)
 
 
+    def test_check_pts_in_subset_domain(self, sample_ens):
+        ctr_lat = 0.5 * (sample_ens.lat_limits[0] + sample_ens.lat_limits[1])
+        ctr_lon = 0.5 * (sample_ens.lon_limits[0] + sample_ens.lon_limits[1])
+        points = [[ctr_lon, ctr_lat],
+                  [sample_ens.lon_limits[0] - 0.1, ctr_lat],
+                  [sample_ens.lon_limits[1] + 0.1, ctr_lat],
+                  [ctr_lon, sample_ens.lat_limits[0] - 0.1],
+                  [ctr_lon, sample_ens.lat_limits[1] + 0.1]]
+        indomain = sample_ens.check_pts_in_subset_domain(points)
+              
+        assert np.array_equal(indomain, np.array([True, False, False, False, False]))
+
+
     def test_subset_bufr(self, sample_ens):
         nonan_field = 'TOB'
         subset_bufr = sample_ens._subset_bufr(['ADPSFC'], nonan_field, DHR=0)
+
+        # Check that at least some obs were retained
+        assert len(subset_bufr) > 0
 
         # Check spatial subsetting
         assert np.amax(subset_bufr['XOB'] - 360.) <= sample_ens.lon_limits[1]
@@ -90,7 +106,6 @@ class TestEnsemble():
                                                                         sample_ens.subset_ds[m]['gridlon_0'])
         linear_df = sample_ens.interp_model_2d('interp_test', ob_lat, ob_lon, method='linear')
         assert np.allclose(linear_df[mem].values, create_linear_data(ob_lat, ob_lon))
-
 
 
 """
