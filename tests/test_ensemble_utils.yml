@@ -1,0 +1,34 @@
+# Input Parameters for Cloud DA Case Analysis
+#--------------------------------------------
+
+# UPP output for each ensemble member
+str_format: '/mnt/lfs4/BMC/wrfruc/murdzek/RRFS_Ens_Cloud_DA/Feb2022_retro/Ens_GDAS_SDLVDL_noGF_cloud1/v0.6.2/prod/rrfs_conus_3km_ensda.20220201/08/mem{num:04d}/rrfs.t08z.{lev}.f001.conus_3km.grib2'
+prslev_vars:
+  - 'HGT_P0_L215_GLC0'
+nmem: 1
+
+# BUFR parameters
+bufr_fname: '/lfs4/BMC/wrfruc/murdzek/real_obs/decoded_bufr_for_cloudDA/202202010900.rap.prepbufr.csv'
+
+# Subset domain
+min_lon: -100
+max_lon: -98.5
+min_lat: 27.5
+max_lat: 29.5
+z_ind:
+  - 10
+
+# Variables to include in state matrix (assumed to be 3D)
+state_vars:
+  - 'TMP_P0_L105_GLC0'
+  - 'SPFH_P0_L105_GLC0'
+  - 'TCDC_P0_L105_GLC0'
+
+# Tag to add to output files and output file directory
+save_tag: 'S_TX_2022020108'
+out_dir: '/lfs4/BMC/wrfruc/murdzek/src/py_scripts/cloud_da/cases/S_TX_2022020108' 
+
+# "Target" (lat, lon) coordinate for BEC spatial plots
+bec_lat: 28.4369
+bec_lon: -99.2350
+bec_klvl: 0

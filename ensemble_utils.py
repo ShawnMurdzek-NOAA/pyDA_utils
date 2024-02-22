@@ -10,13 +10,17 @@ shawn.s.murdzek@noaa.gov
 
 import xarray as xr
 import matplotlib.pyplot as plt
+import matplotlib.path as mplPath
 import numpy as np
 import datetime as dt
 import cartopy.crs as ccrs
 import cartopy.feature as cfeature
+import scipy.interpolate as si
+import pandas as pd
 
 import pyDA_utils.plot_model_data as pmd
 import pyDA_utils.bufr as bufr
+import pyDA_utils.map_proj as mp
 
 
 #---------------------------------------------------------------------------------------------------
@@ -56,7 +60,7 @@ class ensemble():
     """
 
     def __init__(self, fnames, verbose=True, extra_fnames={}, extra_fields=[], bufr_csv_fname=None,
-                 lat_limits=[21, 53], lon_limits=[-134.1, -60.9], zind=list(range(1, 66)), 
+                 lat_limits=[10, 53], lon_limits=[-134.1, -60.9], zind=list(range(1, 66)), 
                  zfield='lv_HYBL2', state_fields=[], bec=False):
 
         self.fnames = fnames
@@ -95,8 +99,61 @@ class ensemble():
                self.state_matrix['be_cov'], self.state_matrix['be_corr'] = self._compute_bec()
 
 
-    def _subset_ens_domain(self, min_lon, max_lon, min_lat, max_lat, zind, zfield='lv_HYBL2', 
-                           debug=False):
+    def _get_corner_ind(self, min_lon, max_lon, min_lat, max_lat, debug=False):
+        """
+        Get the corner indices for the subset domain
+
+        Parameters
+        ----------
+        min_lon : float
+            Minimum longitude (deg E, use negatives for W. hemisphere)     
+        max_lon : float
+            Maximum longitude (deg E, use negatives for W. hemisphere)     
+        min_lat : float
+            Minimum latitude (deg N)     
+        max_lat : float
+            Maximum latitude (deg N)     
+        debug : boolean, optional
+            Option to print extra output for debugging
+
+        Returns
+        -------
+        i_llcrnr : integer
+            i index for lower-left corner
+        i_urcrnr : integer
+            i index for upper-right corner
+        j_llcrnr : integer
+            j index for lower-left corner
+        j_urcrnr : integer
+            j index for upper-right corner
+
+        """
+
+        # Determine indices for the x and y dimensions by finding the indices of gridpoints closest to the corners
+        iind = np.zeros(4, dtype=int)
+        jind = np.zeros(4, dtype=int)
+        n = 0
+        tmp_ds = self.ds[self.mem_names[0]]
+        for lon in [min_lon, max_lon]:
+            for lat in [min_lat, max_lat]:
+                iind[n], jind[n] = np.unravel_index(np.argmin((tmp_ds['gridlon_0'] - lon)**2 + 
+                                                              (tmp_ds['gridlat_0'] - lat)**2), 
+                                                    tmp_ds['gridlon_0'].shape)
+                n = n + 1
+
+        if debug:
+            print('iind =', iind)
+            print('jind =', jind)
+ 
+        i_llcrnr = np.amin(iind)
+        i_urcrnr = np.amax(iind)
+        j_llcrnr = np.amin(jind)
+        j_urcrnr = np.amax(jind)
+
+        return i_llcrnr, i_urcrnr, j_llcrnr, j_urcrnr
+
+
+    def _subset_ens_domain(self, min_lon, max_lon, min_lat, max_lat, zind, zfield='lv_HYBL2'):
         """
         Create an ensemble subset for a certain spatial domain
 
@@ -114,8 +171,6 @@ class ensemble():
             Vertical index 
         zfield : string, optional
             Field to apply zind to
-        debug : boolean, optional
-            Option to print extra output for debugging
 
         Returns
         -------
@@ -124,27 +179,13 @@ class ensemble():
 
         """
 
-        # Determine indices for the x and y dimensions by finding the indices of gridpoints closest to the corners
-        iind = np.zeros(4, dtype=int)
-        jind = np.zeros(4, dtype=int)
-        n = 0
-        tmp_ds = self.ds[self.mem_names[0]]
-        for lon in [min_lon, max_lon]:
-            for lat in [min_lat, max_lat]:
-                iind[n], jind[n] = np.unravel_index(np.argmin((tmp_ds['gridlon_0'] - lon)**2 + 
-                                                              (tmp_ds['gridlat_0'] - lat)**2), 
-                                                    tmp_ds['gridlon_0'].shape)
-                n = n + 1
+        crnr_ind = self._get_corner_ind(min_lon, max_lon, min_lat, max_lat)
 
-        # Create subset DataSet
         subset_ds = {}
         zdict = {zfield:zind}
-        if debug:
-            print('iind =', iind)
-            print('jind =', jind)
         for key in self.mem_names:
-            subset_ds[key] = self.ds[key].sel(xgrid_0=slice(np.amin(jind), np.amax(jind)), 
-                                              ygrid_0=slice(np.amin(iind), np.amax(iind)), 
+            subset_ds[key] = self.ds[key].sel(xgrid_0=slice(crnr_ind[2], crnr_ind[3]), 
+                                              ygrid_0=slice(crnr_ind[0], crnr_ind[1]), 
                                               **zdict)
 
         return subset_ds
@@ -235,8 +276,42 @@ class ensemble():
            
         return be_cov, be_corr
 
+
+    def check_pts_in_subset_domain(self, points):
+        """
+        Check to see if points lie within the subset domain
+
+        Parameters
+        ----------
+        points : array
+            2D array of (lon, lat) point to check
+
+        Returns
+        -------
+        indomain : array
+            1D boolean array where values are True is points lie in the domain
+
+        """
+
+        # Extract (lat, lon) coordinates and grid dimensions
+        lon2d = self.subset_ds[self.mem_names[0]]['gridlon_0'].values
+        lat2d = self.subset_ds[self.mem_names[0]]['gridlat_0'].values
+        idim, jdim = lon2d.shape
+
+        # Define points along the edge of the domain
+        edge_pts = [[lon2d[i, j], lat2d[i, j]] 
+                    for i, j in zip(list(range(idim)) + [idim-1]*jdim + list(range(idim-1, -1, -1)) + [0]*jdim,
+                                    [0]*idim + list(range(jdim)) + [jdim-1]*idim + list(range(jdim-1, -1, -1)))]
+
+        # Create path object
+        path = mplPath.Path(edge_pts)
+
+        indomain = path.contains_points(points)
+
+        return indomain
+
    
-    def _subset_bufr(self, subset, nonan_field):
+    def _subset_bufr(self, subset, nonan_field, DHR=0):
         """
         Subset BUFR obs to only contin certain ob subsets in a certain domain with a certain field
         is not NaN
@@ -247,7 +322,10 @@ class ensemble():
             List of observation subsets to retain
         nonan_field : string
             Only retain rows if this field is not a NaN
- 
+        DHR : float, optional
+            If multiple obs exist for a single SID, only retain the obs closest to DHR. Set to NaN
+            to turn off 
+
         Returns
         -------
         red_ob_csv : pd.DataFrame
@@ -269,14 +347,78 @@ class ensemble():
                                (red_ob_csv['XOB'] <= (360 + self.lon_limits[1])))[0]
         red_ob_csv = red_ob_csv.iloc[spatial_idx, :]
         red_ob_csv.reset_index(inplace=True, drop=True)
-     
+    
+        # Remove any additional points that might life outside the domain
+        ob_pts = [[x, y] for x, y in zip(red_ob_csv['XOB'] - 360., red_ob_csv['YOB'])]
+        spatial_idx2 = self.check_pts_in_subset_domain(ob_pts)
+        red_ob_csv = red_ob_csv.iloc[spatial_idx2, :]
+        red_ob_csv.reset_index(inplace=True, drop=True)
+ 
         # Only retain rows where the nonan_field is not a NaN
         red_ob_csv = red_ob_csv.loc[~np.isnan(red_ob_csv[nonan_field])]
         red_ob_csv.reset_index(inplace=True, drop=True)
 
+        # Only retain the single ob closest to DHR for each site
+        if ~np.isnan(DHR):
+            all_sid = np.unique(red_ob_csv['SID'])
+            keep_idx = [np.abs(red_ob_csv['DHR'].loc[red_ob_csv['SID'] == s] - DHR).idxmin() for s in all_sid]
+            red_ob_csv = red_ob_csv.loc[keep_idx]
+            red_ob_csv.reset_index(inplace=True, drop=True)
+
         return red_ob_csv 
 
+
+    def interp_model_2d(self, field, lat, lon, zind=np.nan, method='nearest', verbose=False):
+        """
+        Interpolate model output to certain locations
+
+        Parameters
+        ----------
+        field : string
+            Field to interpolate
+        lat : array
+            Latitudes to interpolate to (deg N)
+        lon : array
+            Longitudes to interpolate to (deg E in range -180 to 180)
+        zind : integer, optional
+            Vertical index to use if field is 3D. Set to NaN for 2D fields
+        method : string, optional
+            Interpolation method. Only options are 'nearest' and 'linear' at the moment
+        verbose: boolean, optional
+            Option for verbose output
+
+        Returns
+        -------
+        interp_ens_df : DataFrame
+            DataFrame holding interpolated output from each ensemble member
+
+        """
+
+        # Obtain lat/lon arrays, which are the same for each ensemble member
+        mlat1d = np.ravel(self.subset_ds[self.mem_names[0]]['gridlat_0'])
+        mlon1d = np.ravel(self.subset_ds[self.mem_names[0]]['gridlon_0'])
+
+        interp_ens_dict = {'XOB':lon, 'YOB':lat}
+        for mem in self.mem_names:
+            if verbose:
+                print('Performing interpolation for {n}'.format(n=mem))
+            if np.isnan(zind):
+                z = np.ravel(self.subset_ds[mem][field].values)
+            else:
+                z = np.ravel(self.subset_ds[mem][field][zind, :, :].values)
+            if method == 'nearest':
+                interp_fct = si.NearestNDInterpolator(list(zip(mlon1d, mlat1d)), z)
+            elif method == 'linear':
+                interp_fct = si.LinearNDInterpolator(list(zip(mlon1d, mlat1d)), z)
+            else:
+                print("Only 'nearest' and 'linear' interpolation are currently supported")        
+            interp_ens_dict[mem] = interp_fct(lon, lat)
+
+        interp_ens_df = pd.DataFrame(interp_ens_dict)
+
+        return interp_ens_df
     
+
     def postage_stamp_contourf(self, field, nrows, ncols, klvl=np.nan, figsize=(10, 10), title='',
                                plt_kw={}, verbose=False):
         """
@@ -313,17 +455,31 @@ class ensemble():
             if verbose:
                 print('plotting {mem}'.format(mem=key))
             plot_obj = pmd.PlotOutput([self.subset_ds[key]], 'upp', fig, nrows, ncols, i+1)
-            plot_obj.contourf(field, cbar=False, **plt_kw)
+
+            # Skip plotting if < 2 NaN
+            if np.isnan(klvl):
+                make_plot = np.sum(~np.isnan(self.subset_ds[key][field])) > 1
+            else:
+                make_plot = np.sum(~np.isnan(self.subset_ds[key][field][klvl, :, :])) > 1
+            if make_plot:
+                plot_obj.contourf(field, cbar=False, **plt_kw)
+                cax = plot_obj.cax
+                meta = plot_obj.metadata['contourf0']
+            else:
+                if verbose:
+                    print('skipping plot for {mem}'.format(mem=key))
+                plot_obj.ax = fig.add_subplot(nrows, ncols, i+1, projection=plot_obj.proj)
+
             plot_obj.config_ax(grid=False)
             plot_obj.set_lim(self.lat_limits[0], self.lat_limits[1], 
                              self.lon_limits[0], self.lon_limits[1])
             plot_obj.ax.set_title(key, size=14)
     
-        cb_ax = fig.add_axes([0.9, 0.02, 0.03, 0.9])
-        cbar = plt.colorbar(plot_obj.cax, cax=cb_ax, orientation='vertical', aspect=35)
-        cbar.set_label('%s%s (%s)' % (plot_obj.metadata['contourf0']['interp'], 
-                                      plot_obj.metadata['contourf0']['name'], 
-                                      plot_obj.metadata['contourf0']['units']), size=14)
+        cb_ax = fig.add_axes([0.915, 0.02, 0.02, 0.9])
+        cbar = plt.colorbar(cax, cax=cb_ax, orientation='vertical', aspect=35)
+        cbar.set_label('%s%s (%s)' % (meta['interp'], 
+                                      meta['name'], 
+                                      meta['units']), size=14)
         if ~np.isnan(klvl):
             tmp_ds = self.subset_ds[self.mem_names[0]]
             title = '{t} (avg z = {z:.1f} m)'.format(t=title, z=float(np.mean(tmp_ds['HGT_P0_L105_GLC0'][klvl, :, :] -
