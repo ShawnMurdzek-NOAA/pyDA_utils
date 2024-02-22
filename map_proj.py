@@ -155,6 +155,49 @@ def ll_to_xy_lc(lat, lon, ref_lat=38.5, ref_lon=-97.5, truelat1=38.5, truelat2=3
     return xi, yi
 
 
+def rmse_map_proj(lat, lon, proj=ll_to_xy_lc, proj_kw={}):
+    """
+    Compute RMSEs between grid coordinates and  map projection coordinates. Useful to see whether 
+    the projection is appropriate
+
+    Parameters
+    ----------
+    lat : 2D array
+        Latitudes (deg N)
+    lon : 2D array 
+        Longitudes (deg E, -180 to 180)
+    proj : function, optional
+        Map projection function
+    proj_kw : dictionary, optional
+        Additional arguments passed to the map projection function
+
+    Returns
+    -------
+    x_rmse : float
+        RMSE in for the x coordinate
+    y_rmse : float
+        RMSE in for the y coordinate
+
+    """
+
+    # Flatten 2D arrays
+    grid_shape = lat.shape
+    lat1d = lat.values.ravel()
+    lon1d = lon.values.ravel()
+   
+    # Perform map projection
+    x1d, y1d = proj(lat1d, lon1d, **proj_kw)
+
+    # Compute RMSEs
+    x2d_mp = np.reshape(x1d, grid_shape)
+    y2d_mp = np.reshape(y1d, grid_shape)
+    x2d_true, y2d_true = np.meshgrid(np.arange(grid_shape[1]), np.arange(grid_shape[0]))
+    x_rmse = np.sqrt(np.mean((x2d_mp - x2d_true)**2))
+    y_rmse = np.sqrt(np.mean((y2d_mp - y2d_true)**2))
+
+    return x_rmse, y_rmse
+
+
 #---------------------------------------------------------------------------------------------------
 # Plot Showing Differences Between WRF Gridpoint Locations and Calculated Gridpoint Locations
 #---------------------------------------------------------------------------------------------------
