@@ -10,6 +10,7 @@ shawn.s.murdzek@noaa.gov
 
 import numpy as np
 import xarray as xr
+import scipy.interpolate as si
 
 import pyDA_utils.bufr as bufr
 import pyDA_utils.map_proj as mp
@@ -89,11 +90,12 @@ class superobPB(bufr.bufrCSV):
 
 
     def grouping_grid(self, grid_fname='/work2/noaa/wrfruc/murdzek/src/pyDA_utils/tests/data/RRFS_grid_max.nc',
-                      grid_field_names={'x':'lon', 'y':'lat', 'z':'HGT_AGL'},
+                      grid_field_names={'x':'lon', 'y':'lat', 'sfc':'HGT_SFC', 'z':'HGT_AGL'},
                       map_proj=mp.ll_to_xy_lc,
                       map_proj_kw={'dx':3, 'knowni':899, 'knownj':529},
                       check_proj=True,
-                      subtract_360_lon_grid=True):
+                      subtract_360_lon_grid=True,
+                      interp_kw={}):
         """
         Create superob groups based on the model grid
         """
@@ -120,15 +122,46 @@ class superobPB(bufr.bufrCSV):
                 print(f'Y RMSE = {y_rmse}')
 
         # Perform map projection on obs
-        xob, yob = map_proj(self.df['YOB'], self.df['XOB'] - 360, **map_proj_kw)
+        self.map_proj_obs(map_proj=map_proj, map_proj_kw=map_proj_kw)
+
+        # Determine height AGL of obs
+        hgt_sfc = grid_ds[grid_field_names['sfc']].values
+        xgrid, ygrid = np.meshgrid(np.arange(grid_ds[grid_field_names['x']].shape[0]),
+                                   np.arange(grid_ds[grid_field_names['x']].shape[1]))
+        self.interp_gridded_field_obs('SFC', (xgrid, ygrid), hgt_sfc, interp_kw=interp_kw)
+        obs_hgt_agl = self.df['ZOB'] - self.df['SFC']
 
         # Assign superob groups
-        xgroup = np.floor(xob)
-        ygroup = np.floor(yob) 
+        xgroup = np.floor(self.df['XMP'])
+        ygroup = np.floor(self.df['YMP']) 
         zgroup = np.zeros(len(xgroup))
         for i in range(nz):
-            zgroup = zgroup + (self.df['ZOB'] > grid_ds[grid_field_names['z']][nz-i-1])
+            zgroup = zgroup + (obs_hgt_agl > grid_ds[grid_field_names['z']][nz-i-1])
         self.df['superob_groups'] = xgroup + (ygroup*nx) + (zgroup*nx*ny)      
+
+  
+    def map_proj_obs(self, map_proj=mp.ll_to_xy_lc,
+                     map_proj_kw={'dx':3, 'knowni':899, 'knownj':529}):
+        """
+        Perform map projection on observation locations
+        """
+
+        xob, yob = map_proj(self.df['YOB'], self.df['XOB'] - 360, **map_proj_kw)
+        self.df['XMP'] = xob
+        self.df['YMP'] = yob
+
+
+    def interp_gridded_field_obs(self, outfield, grid_pts, grid_vals, interp_kw={}):
+        """
+        Interpolate a gridded field to observation locations
+        """
+
+        # Create interpolation object
+        interp = si.RegularGridInterpolator(grid_pts, grid_val, **interp_kw)
+
+        # Apply interpolation object
+        obs_pts = np.array([[x, y] for x, y in zip(self.df['XMP'], self.df['YMP'])])
+        self.df[outfield] = interp(obs_pt)
 
 
     def reduction_superob(self, var_dict={'TOB':{'method':'mean', 'qm_kw':{'field':'TQM', 'thres':2}, 'reduction_kw':{}}}):
