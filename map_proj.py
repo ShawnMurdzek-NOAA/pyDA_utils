@@ -182,8 +182,8 @@ def rmse_map_proj(lat, lon, proj=ll_to_xy_lc, proj_kw={}):
 
     # Flatten 2D arrays
     grid_shape = lat.shape
-    lat1d = lat.values.ravel()
-    lon1d = lon.values.ravel()
+    lat1d = lat.ravel()
+    lon1d = lon.ravel()
    
     # Perform map projection
     x1d, y1d = proj(lat1d, lon1d, **proj_kw)
