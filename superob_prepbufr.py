@@ -29,12 +29,13 @@ class superobPB(bufr.bufrCSV):
 
     """
 
-    def __init__(self, fname):
+    def __init__(self, fname, debug=0):
         super().__init__(fname)
         self.full_df = self.df.copy()
+        self.debug = debug
 
 
-    def create_superobs(self, obtypes=[136], grouping='temporal', grouping_kw={}, reduction_kw={})
+    def create_superobs(self, obtypes=[136], grouping='temporal', grouping_kw={}, reduction_kw={}):
         """
         Main driver to create superobs
         """ 
@@ -82,7 +83,7 @@ class superobPB(bufr.bufrCSV):
 
         # Assign superob group numbers
         group = 0
-        for window_min in np.arange(min_dhr, max_dhr - (0.5*window_dhr), window_dhr)
+        for window_min in np.arange(min_dhr, max_dhr - (0.5*window_dhr), window_dhr):
             dhr_cond = np.logical_and(self.df['DHR'] >= window_min, self.df['DHR'] < (window_min + window_dhr))
             for s in sids:
                 self.df.loc[(self.df['SID'] == s) & dhr_cond, 'superob_groups'] = group
@@ -112,7 +113,7 @@ class superobPB(bufr.bufrCSV):
                 lon = grid_ds[grid_field_names['x']].values - 360
             else:
                 lon = grid_ds[grid_field_names['x']].values
-            x_rmse, y_rmse = mp.rmse_map_proj(grid_ds[grid_field_names['y']],
+            x_rmse, y_rmse = mp.rmse_map_proj(grid_ds[grid_field_names['y']].values,
                                               lon,
                                               proj=map_proj,
                                               proj_kw=map_proj_kw)
@@ -126,17 +127,17 @@ class superobPB(bufr.bufrCSV):
 
         # Determine height AGL of obs
         hgt_sfc = grid_ds[grid_field_names['sfc']].values
-        xgrid, ygrid = np.meshgrid(np.arange(grid_ds[grid_field_names['x']].shape[0]),
-                                   np.arange(grid_ds[grid_field_names['x']].shape[1]))
-        self.interp_gridded_field_obs('SFC', (xgrid, ygrid), hgt_sfc, interp_kw=interp_kw)
-        obs_hgt_agl = self.df['ZOB'] - self.df['SFC']
+        x1d_grid = np.arange(grid_ds[grid_field_names['x']].shape[1])
+        y1d_grid = np.arange(grid_ds[grid_field_names['x']].shape[0])
+        self.interp_gridded_field_obs('SFC', (y1d_grid, x1d_grid), hgt_sfc, interp_kw=interp_kw)
+        obs_hgt_agl = self.df['ZOB'].values - self.df['SFC'].values
 
         # Assign superob groups
         xgroup = np.floor(self.df['XMP'])
         ygroup = np.floor(self.df['YMP']) 
-        zgroup = np.zeros(len(xgroup))
+        zgroup = np.zeros(len(self.df))
         for i in range(nz):
-            zgroup = zgroup + (obs_hgt_agl > grid_ds[grid_field_names['z']][nz-i-1])
+            zgroup = zgroup + (obs_hgt_agl > grid_ds[grid_field_names['z']].values[nz-i-1])
         self.df['superob_groups'] = xgroup + (ygroup*nx) + (zgroup*nx*ny)      
 
   
@@ -157,11 +158,11 @@ class superobPB(bufr.bufrCSV):
         """
 
         # Create interpolation object
-        interp = si.RegularGridInterpolator(grid_pts, grid_val, **interp_kw)
+        interp = si.RegularGridInterpolator(grid_pts, grid_vals, **interp_kw)
 
         # Apply interpolation object
-        obs_pts = np.array([[x, y] for x, y in zip(self.df['XMP'], self.df['YMP'])])
-        self.df[outfield] = interp(obs_pt)
+        obs_pts = np.array([[y, x] for x, y in zip(self.df['XMP'], self.df['YMP'])])
+        self.df[outfield] = interp(obs_pts)
 
 
     def reduction_superob(self, var_dict={'TOB':{'method':'mean', 'qm_kw':{'field':'TQM', 'thres':2}, 'reduction_kw':{}}}):
