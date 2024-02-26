@@ -318,6 +318,7 @@ def plot_obs(bufr_df, colorcode=None, fig=None, nrows=1, ncols=1, axnum=1,
         cbar = plt.colorbar(cax, ax=ax)
         cbar.set_label(colorcode, size=14)
     else:
+        plot_df = bufr_df.copy()
         ax.scatter(plot_df['XOB'], plot_df['YOB'], transform=ccrs.PlateCarree(), **kwargs)
 
     return ax
