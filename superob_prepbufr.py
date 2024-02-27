@@ -255,7 +255,8 @@ class superobPB(bufr.bufrCSV):
         if use_metpy:
             ob_pts = np.array([[x, y] for x, y in zip(qc_df['XMP'].values, qc_df['YMP'].values)])
             superob_pts = np.array([[x, y] for x, y in zip(superob_x, superob_y)])
-            superobs = mi.interpolate_to_points(ob_pts, qc_df[field].values, interp_type='cressman',
+            superobs = mi.interpolate_to_points(ob_pts, qc_df[field].values, superob_pts,
+                                                interp_type='cressman',
                                                 minimum_neighbors=1, search_radius=R)
         else:
             superobs = np.zeros(len(superob_groups)) * np.nan
@@ -266,6 +267,47 @@ class superobPB(bufr.bufrCSV):
                     d2 = ((subset_df['XMP'] - superob_x[i])**2 + 
                           (subset_df['YMP'] - superob_y[i])**2).values
                     d2[d2 > R2] = np.nan
+                    wgts = (R2 - d2) / (R2 + d2)
+                    superobs[i] = np.nansum(wgts * raw_vals) / np.nansum(wgts)
+
+        return superobs
+
+
+    def reduction_vert_cressman(self, qc_df, superob_in, field, R=100, use_metpy=True):
+        """
+        Superob reduction in vertical using a Cressman successive corrections method
+        """
+
+        # Define R2
+        if R == 'max':
+            print('Warning: R = max for reduction_vert_cressman is NOT tested')
+            if use_metpy:
+                print('MetPy not available for R = max. Switching to use_metpy = False')
+                use_metpy = False
+        else:
+            R2 = R*R
+
+        # Define superob ZOB
+        superob_groups = superob_in['superob_groups'].values
+        superob_z = superob_in['ZOB'].values
+
+        # Create superobs
+        if use_metpy:
+            ob_pts = np.array([[z, 0] for z in qc_df['ZOB'].values])
+            superob_pts = np.array([[z, 0] for z in superob_z])
+            superobs = mi.interpolate_to_points(ob_pts, qc_df[field].values, superob_pts, interp_type='cressman',
+                                                minimum_neighbors=1, search_radius=R)
+        else:
+            superobs = np.zeros(len(superob_groups)) * np.nan
+            for i, g in enumerate(superob_groups):
+                subset_df = qc_df.loc[qc_df['superob_groups'] == g].copy()
+                if len(subset_df) > 0:
+                    raw_vals = subset_df[field].values
+                    d2 = (subset_df['ZOB'].values - superob_z[i])**2
+                    if R == 'max':
+                        R2 = np.max(d2)
+                    else:
+                        d2[d2 > R2] = np.nan
                     wgts = (R2 - d2) / (R2 + d2)
                     superobs[i] = np.nansum(wgts * raw_vals) / np.nansum(wgts)
 

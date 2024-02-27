@@ -241,7 +241,7 @@ class TestSuperob():
 
     def test_reduction_hor_cressman(self, sample_pb):
         """
-        We'll just try running this method for now
+        Compare MetPy and brute-force approaches
         """
 
         # Create input df
@@ -252,8 +252,45 @@ class TestSuperob():
         # Obtain superob coordinates
         superobs_in = sample_pb.reduction_superob(var_dict={})
 
-        superobs_no_metpy = sample_pb.reduction_hor_cressman(qc_df, superobs_in, 'TOB', use_metpy=False)
-        superobs_metpy = sample_pb.reduction_hor_cressman(qc_df, superobs_in, 'TOB', use_metpy=False)
+        superobs_no_metpy = sample_pb.reduction_hor_cressman(qc_df, superobs_in, 'TOB', R=1, use_metpy=False)
+        superobs_metpy = sample_pb.reduction_hor_cressman(qc_df, superobs_in, 'TOB', R=1, use_metpy=True)
+
+        # Print statements for debugging
+        print()
+        print('reduction_hor_cressman')
+        print(superobs_no_metpy)
+        print(superobs_metpy)
+        print()
+
+        assert np.allclose(superobs_no_metpy, superobs_metpy)
+
+
+    def test_reduction_vert_cressman(self, sample_pb):
+        """
+        Compare MetPy and brute-force approaches
+        """
+
+        # Create input df
+        grid_fname='./data/RRFS_grid_max.nc'
+        sample_pb.assign_superob('grid', grouping_kw={'grid_fname':grid_fname})
+        qc_df = sample_pb.qc_obs(field='TQM', thres=2)
+
+        # Obtain superob coordinates
+        superobs_in = sample_pb.reduction_superob(var_dict={})
+
+        superobs_no_metpy = sample_pb.reduction_vert_cressman(qc_df, superobs_in, 'TOB', R=5, use_metpy=False)
+        superobs_no_metpy_R100 = sample_pb.reduction_vert_cressman(qc_df, superobs_in, 'TOB', R=100, use_metpy=False)
+        superobs_metpy = sample_pb.reduction_vert_cressman(qc_df, superobs_in, 'TOB', R=5, use_metpy=True)
+        superobs_metpy_R100 = sample_pb.reduction_vert_cressman(qc_df, superobs_in, 'TOB', R=100, use_metpy=True)
+
+        # Print statements for debugging
+        print()
+        print('reduction_vert_cressman')
+        print(superobs_no_metpy)
+        print(superobs_no_metpy_R100)
+        print(superobs_metpy)
+        print(superobs_metpy_R100)
+        print()
 
         assert np.allclose(superobs_no_metpy, superobs_metpy)
 
