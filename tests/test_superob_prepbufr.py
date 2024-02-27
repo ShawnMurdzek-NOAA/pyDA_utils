@@ -1,6 +1,9 @@
 """
 Tests for superob_prepbufr.py
 
+Note: Use -s option when running pytest to display stdout for tests that pass. Stdout should already
+be displayed for tests that fail.
+
 shawn.s.murdzek@noaa.gov
 """
 
@@ -68,7 +71,6 @@ class TestSuperob():
 
         # Check that superob groups are at least window_dhr apart from one another
         minvals_sort = np.sort(minvals)
-        print(minvals[1:] - minvals[:-1])
         assert np.amin(minvals[1:] - minvals[:-1]) >= (window_dhr - 1./3600.)
 
         # Check that superob groups from one SID do not overlap with another SID
@@ -82,7 +84,62 @@ class TestSuperob():
         For now, we'll just run this method to see if it crashes
         """
 
-        sample_pb.grouping_grid(grid_fname='./data/RRFS_grid_max.nc')
+        # Create superobs
+        grid_fname='./data/RRFS_grid_max.nc'
+        sample_pb.grouping_grid(grid_fname=grid_fname, map_proj_kw={'dx':3, 'knowni':899, 'knownj':529})
+
+        # Read in RRFS grid
+        grid_ds = xr.open_dataset(grid_fname)
+        zgrid = grid_ds['HGT_AGL'].values
+        nz = len(zgrid)
+
+        # Determine obs height AGL
+        sample_pb.df['HGT_AGL'] = sample_pb.df['ZOB'].values - sample_pb.df['SFC'].values
+
+        # Useful information when trying to debug why horizontal superob group is failing
+        print('UA000001 XMP =', sample_pb.df.loc[sample_pb.df['SID'] == "'UA000001'", 'XMP'].values[0])
+        print('UA000001 YMP =', sample_pb.df.loc[sample_pb.df['SID'] == "'UA000001'", 'YMP'].values[0])
+        print('UA000002 XMP =', sample_pb.df.loc[sample_pb.df['SID'] == "'UA000002'", 'XMP'].values[0])
+        print('UA000002 YMP =', sample_pb.df.loc[sample_pb.df['SID'] == "'UA000002'", 'YMP'].values[0])
+
+        # Examine superob groups
+        all_sid = np.unique(sample_pb.df['SID'].values)
+        ngroupsv = 0
+        ngroupsh = 0
+        for i in range(nz-1, 1, -1):
+
+            # Examine superob groups in the vertical (this test only works for vertical profiles)
+            for sid in all_sid:
+                target_group = np.unique(sample_pb.df.loc[(sample_pb.df['HGT_AGL'] >= zgrid[i]) &
+                                                          (sample_pb.df['HGT_AGL'] < zgrid[i-1]) &
+                                                          (sample_pb.df['SID'] == sid), 'superob_groups'])
+                other_groups = np.unique(sample_pb.df.loc[(sample_pb.df['HGT_AGL'] < zgrid[i]) |
+                                                          (sample_pb.df['HGT_AGL'] >= zgrid[i-1]) &
+                                                          (sample_pb.df['SID'] == sid), 'superob_groups'])
+                if len(target_group) > 0:
+                    ngroupsv = ngroupsv + 1
+                    assert len(target_group) == 1
+                    assert target_group[0] not in other_groups
+
+            # Examine superob groups in the horizontal
+            # Use UA000001 and UA000002, which are designed to be in the same horizontal superob groups
+            target_group = np.unique(sample_pb.df.loc[(sample_pb.df['HGT_AGL'] >= zgrid[i]) &
+                                                      (sample_pb.df['HGT_AGL'] < zgrid[i-1]) &
+                                                      ((sample_pb.df['SID'] == "'UA000001'") |
+                                                       (sample_pb.df['SID'] == "'UA000002'")), 'superob_groups'])
+            other_groups = np.unique(sample_pb.df.loc[(sample_pb.df['SID'] != "'UA000001'") &
+                                                      (sample_pb.df['SID'] != "'UA000002'"), 'superob_groups'])
+                
+            if len(target_group) > 0:
+                ngroupsh = ngroupsh + 1
+                assert len(target_group) == 1
+                assert target_group[0] not in other_groups
+
+        # This ensures that we captured at least one superob group in the vertical and horizontal
+        print('ngroups in vertical =', ngroupsv)
+        print('ngroups in horizontal =', ngroupsh)
+        assert ngroupsv > 1
+        assert ngroupsh > 1
 
 
     def test_map_proj_obs(self, sample_pb):
