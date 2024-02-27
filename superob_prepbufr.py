@@ -150,8 +150,8 @@ class superobPB(bufr.bufrCSV):
         """
 
         xob, yob = self.map_proj(df['YOB'], df['XOB'] - 360, **self.map_proj_kw)
-        df['XMP'] = xob
-        df['YMP'] = yob
+        df.loc[:, 'XMP'] = xob
+        df.loc[:, 'YMP'] = yob
 
         return df
 
@@ -185,7 +185,7 @@ class superobPB(bufr.bufrCSV):
             if key in all_keys:
                 all_keys.remove(key)
             else:
-                var_dict[key] = {'method':'mean'}
+                var_dict[key] = {'method':'mean', 'reduction_kw':{}}
         superob_keys = superob_keys + all_keys
 
         # Perform superob reduction
@@ -250,16 +250,18 @@ class superobPB(bufr.bufrCSV):
 
         # Perform map projection on superob coordinates
         superob_in = self.map_proj_obs(superob_in)
+        superob_groups = superob_in['superob_groups'].values
+        superob_x = superob_in['XMP'].values
+        superob_y = superob_in['YMP'].values
 
         # Create superobs
-        superob_groups = np.unique(self.df['superob_groups'])
         superobs = np.zeros(len(superob_groups)) * np.nan
         for i, g in enumerate(superob_groups):
             subset_df = qc_df.loc[qc_df['superob_groups'] == g].copy()
             if len(subset_df) > 0:
-                raw_vals = subset_df['field'].values
-                d2 = ((subset_df['XMP'] - superob_in['XMP'])**2 + 
-                      (subset_df['YMP'] - superob_in['YMP'])**2).values
+                raw_vals = subset_df[field].values
+                d2 = ((subset_df['XMP'] - superob_x[i])**2 + 
+                      (subset_df['YMP'] - superob_y[i])**2).values
                 d2[d2 > R2] = np.nan
                 wgts = (R2 - d2) / (R2 + d2)
                 superobs[i] = np.nansum(wgts * raw_vals) / np.nansum(wgts)
