@@ -35,10 +35,15 @@ class superobPB(bufr.bufrCSV):
         self.debug = debug
 
 
-    def create_superobs(self, obtypes=[136], grouping='temporal', grouping_kw={}, reduction_kw={}):
+    def create_superobs(self, obtypes=[136], grouping='temporal', grouping_kw={}, reduction_kw={}, 
+                        map_proj=mp.ll_to_xy_lc, map_proj_kw={'dx':3, 'knowni':899, 'knownj':529}):
         """
         Main driver to create superobs
         """ 
+
+        # Save map projection info
+        self.map_proj = map_proj
+        self.map_proj_kw = map_proj_kw
 
         # Only retain obs that will be part of the superob
         self.select_obtypes(obtypes)
@@ -92,8 +97,6 @@ class superobPB(bufr.bufrCSV):
 
     def grouping_grid(self, grid_fname='/work2/noaa/wrfruc/murdzek/src/pyDA_utils/tests/data/RRFS_grid_max.nc',
                       grid_field_names={'x':'lon', 'y':'lat', 'sfc':'HGT_SFC', 'z':'HGT_AGL'},
-                      map_proj=mp.ll_to_xy_lc,
-                      map_proj_kw={'dx':3, 'knowni':899, 'knownj':529},
                       check_proj=True,
                       subtract_360_lon_grid=True,
                       interp_kw={}):
@@ -115,15 +118,15 @@ class superobPB(bufr.bufrCSV):
                 lon = grid_ds[grid_field_names['x']].values
             x_rmse, y_rmse = mp.rmse_map_proj(grid_ds[grid_field_names['y']].values,
                                               lon,
-                                              proj=map_proj,
-                                              proj_kw=map_proj_kw)
+                                              proj=self.map_proj,
+                                              proj_kw=self.map_proj_kw)
             if (x_rmse > tol) or (y_rmse > tol):
                 print('map projection is not appropriate for this grid')
                 print(f'X RMSE = {x_rmse}')
                 print(f'Y RMSE = {y_rmse}')
 
         # Perform map projection on obs
-        self.map_proj_obs(map_proj=map_proj, map_proj_kw=map_proj_kw)
+        self.df = self.map_proj_obs(self.df)
 
         # Determine height AGL of obs
         hgt_sfc = grid_ds[grid_field_names['sfc']].values
@@ -141,15 +144,16 @@ class superobPB(bufr.bufrCSV):
         self.df['superob_groups'] = xgroup + (ygroup*nx) + (zgroup*nx*ny)      
 
   
-    def map_proj_obs(self, map_proj=mp.ll_to_xy_lc,
-                     map_proj_kw={'dx':3, 'knowni':899, 'knownj':529}):
+    def map_proj_obs(self, df):
         """
         Perform map projection on observation locations
         """
 
-        xob, yob = map_proj(self.df['YOB'], self.df['XOB'] - 360, **map_proj_kw)
-        self.df['XMP'] = xob
-        self.df['YMP'] = yob
+        xob, yob = self.map_proj(df['YOB'], df['XOB'] - 360, **self.map_proj_kw)
+        df['XMP'] = xob
+        df['YMP'] = yob
+
+        return df
 
 
     def interp_gridded_field_obs(self, outfield, grid_pts, grid_vals, interp_kw={}):
@@ -173,11 +177,33 @@ class superobPB(bufr.bufrCSV):
         # Create superob DataFrame for results
         superobs = self.df.drop_duplicates('superob_groups')
 
+        # Check to see if options are defined for coordinates (XOB, YOB, ZOB, DHR)
+        # Use mean if not defined
+        all_keys = list(var_dict.keys())
+        superob_keys = ['XOB', 'YOB', 'ZOB', 'DHR']
+        for key in superob_keys:
+            if key in all_keys:
+                all_keys.remove(key)
+            else:
+                var_dict[key] = {'method':'mean'}
+        superob_keys = superob_keys + all_keys
+
         # Perform superob reduction
-        for field in var_dict.keys():
-            qc_df = self.qc_obs(**var_dict[field]['qm_kw'])
+        for field in superob_keys:
+
+            # Perform quality control
+            if 'qm_kw' in var_dict[field].keys():
+                qc_df = self.qc_obs(**var_dict[field]['qm_kw'])
+            else:
+                qc_df = self.df.copy()
+    
+            # Perform reduction
             if var_dict[field]['method'] == 'mean':
                 superobs[field] = self.reduction_mean(qc_df, field, **var_dict[field]['reduction_kw'])
+            elif var_dict[field]['method'] == 'hor_cressman':
+                superobs[field] = self.reduction_hor_cressman(qc_df, superobs, field, **var_dict[field]['reduction_kw'])
+            elif var_dict[field]['method'] == 'vert_cressman':
+                superobs[field] = self.reduction_vert_cressman(qc_df, superobs, field, **var_dict[field]['reduction_kw'])
             else:
                 print(f'reduction method {reduction} is not a valid option')
         
@@ -196,7 +222,7 @@ class superobPB(bufr.bufrCSV):
 
         return qc_df
 
- 
+
     def reduction_mean(self, qc_df, field):
         """
         Superob reduction using a regular mean
@@ -210,7 +236,36 @@ class superobPB(bufr.bufrCSV):
                 superobs[i] = np.nanmean(values)
 
         return superobs
-        
+    
+    
+    def reduction_hor_cressman(self, qc_df, superob_in, field, R='dx'):
+        """
+        Superob reduction in horizontal using a Cressman successive corrections method
+        """
+
+        # Define R2
+        if R == 'dx':
+            R = np.sqrt(2) * self.map_proj_kw['dx']
+        R2 = R*R
+
+        # Perform map projection on superob coordinates
+        superob_in = self.map_proj_obs(superob_in)
+
+        # Create superobs
+        superob_groups = np.unique(self.df['superob_groups'])
+        superobs = np.zeros(len(superob_groups)) * np.nan
+        for i, g in enumerate(superob_groups):
+            subset_df = qc_df.loc[qc_df['superob_groups'] == g].copy()
+            if len(subset_df) > 0:
+                raw_vals = subset_df['field'].values
+                d2 = ((subset_df['XMP'] - superob_in['XMP'])**2 + 
+                      (subset_df['YMP'] - superob_in['YMP'])**2).values
+                d2[d2 > R2] = np.nan
+                wgts = (R2 - d2) / (R2 + d2)
+                superobs[i] = np.nansum(wgts * raw_vals) / np.nansum(wgts)
+
+        return superobs
+
 
 """
 End superob_prepbufr.py
