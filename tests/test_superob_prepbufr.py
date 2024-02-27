@@ -16,6 +16,7 @@ import pytest
 import pandas as pd
 import xarray as xr
 
+import pyDA_utils.map_proj as mp
 import pyDA_utils.superob_prepbufr as sp
 
 
@@ -28,7 +29,10 @@ class TestSuperob():
     @pytest.fixture(scope='class')
     def sample_pb(self):
         fname = './data/202204291500.rap.fake.prepbufr.for_superob_test.csv'
-        return sp.superobPB(fname)
+        sp_obj = sp.superobPB(fname)
+        sp_obj.map_proj = mp.ll_to_xy_lc
+        sp_obj.map_proj_kw = {'dx':3, 'knowni':899, 'knownj':529}
+        return sp_obj
    
 
     def test_assign_superob(self, sample_pb):
@@ -81,12 +85,13 @@ class TestSuperob():
 
     def test_grouping_grid(self, sample_pb):
         """
-        For now, we'll just run this method to see if it crashes
+        Check that superob groups are created correctly
         """
 
         # Create superobs
         grid_fname='./data/RRFS_grid_max.nc'
-        sample_pb.grouping_grid(grid_fname=grid_fname, map_proj_kw={'dx':3, 'knowni':899, 'knownj':529})
+        sample_pb.map_proj_kw = {'dx':3, 'knowni':899, 'knownj':529}
+        sample_pb.grouping_grid(grid_fname=grid_fname)
 
         # Read in RRFS grid
         grid_ds = xr.open_dataset(grid_fname)
@@ -147,7 +152,7 @@ class TestSuperob():
         Check whether (x, y) from map projection lie within the RRFS grid domain
         """
 
-        sample_pb.map_proj_obs()
+        sample_pb.df = sample_pb.map_proj_obs(sample_pb.df)
         xcheck = np.logical_and(sample_pb.df['XMP'].values >= 0, 
                                 sample_pb.df['XMP'].values <= 1799)
         ycheck = np.logical_and(sample_pb.df['YMP'].values >= 0, 
@@ -228,6 +233,22 @@ class TestSuperob():
         superobs = sample_pb.reduction_mean(qc_df, 'TOB')
 
         assert superobs[0] == np.mean(qc_df.loc[qc_df['superob_groups'] == group1, 'TOB'])
+
+
+    def test_reduction_hor_cressman(self, sample_pb):
+        """
+        We'll just try running this method for now
+        """
+
+        # Obtain superob coordinates
+        superobs_in = sample_pb.reduction_superob(var_dict={})
+
+        # Create input df
+        sample_pb.assign_superob('temporal')
+        qc_df = sample_pb.qc_obs(field='TQM', thres=2)
+        group1 = qc_df['superob_groups'].values[0]
+
+        sample_pb.reduction_hor_cressman(qc_df, superobs_in, 'TOB')
 
 
 """
