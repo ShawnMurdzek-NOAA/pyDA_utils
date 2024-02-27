@@ -11,6 +11,7 @@ shawn.s.murdzek@noaa.gov
 import numpy as np
 import xarray as xr
 import scipy.interpolate as si
+import metpy.interpolate as mi
 
 import pyDA_utils.bufr as bufr
 import pyDA_utils.map_proj as mp
@@ -29,21 +30,19 @@ class superobPB(bufr.bufrCSV):
 
     """
 
-    def __init__(self, fname, debug=0):
+    def __init__(self, fname, debug=0,
+                 map_proj=mp.ll_to_xy_lc, map_proj_kw={'dx':3, 'knowni':899, 'knownj':529}):
         super().__init__(fname)
         self.full_df = self.df.copy()
         self.debug = debug
+        self.map_proj = map_proj
+        self.map_proj_kw = map_proj_kw
 
 
-    def create_superobs(self, obtypes=[136], grouping='temporal', grouping_kw={}, reduction_kw={}, 
-                        map_proj=mp.ll_to_xy_lc, map_proj_kw={'dx':3, 'knowni':899, 'knownj':529}):
+    def create_superobs(self, obtypes=[136], grouping='temporal', grouping_kw={}, reduction_kw={}):
         """
         Main driver to create superobs
         """ 
-
-        # Save map projection info
-        self.map_proj = map_proj
-        self.map_proj_kw = map_proj_kw
 
         # Only retain obs that will be part of the superob
         self.select_obtypes(obtypes)
@@ -175,7 +174,7 @@ class superobPB(bufr.bufrCSV):
         """
 
         # Create superob DataFrame for results
-        superobs = self.df.drop_duplicates('superob_groups')
+        superobs = self.df.drop_duplicates('superob_groups').copy()
 
         # Check to see if options are defined for coordinates (XOB, YOB, ZOB, DHR)
         # Use mean if not defined
@@ -196,14 +195,14 @@ class superobPB(bufr.bufrCSV):
                 qc_df = self.qc_obs(**var_dict[field]['qm_kw'])
             else:
                 qc_df = self.df.copy()
-    
+   
             # Perform reduction
             if var_dict[field]['method'] == 'mean':
-                superobs[field] = self.reduction_mean(qc_df, field, **var_dict[field]['reduction_kw'])
+                superobs.loc[:, field] = self.reduction_mean(qc_df, superobs, field, **var_dict[field]['reduction_kw'])
             elif var_dict[field]['method'] == 'hor_cressman':
-                superobs[field] = self.reduction_hor_cressman(qc_df, superobs, field, **var_dict[field]['reduction_kw'])
+                superobs.loc[:, field] = self.reduction_hor_cressman(qc_df, superobs, field, **var_dict[field]['reduction_kw'])
             elif var_dict[field]['method'] == 'vert_cressman':
-                superobs[field] = self.reduction_vert_cressman(qc_df, superobs, field, **var_dict[field]['reduction_kw'])
+                superobs.loc[:, field] = self.reduction_vert_cressman(qc_df, superobs, field, **var_dict[field]['reduction_kw'])
             else:
                 print(f'reduction method {reduction} is not a valid option')
         
@@ -223,12 +222,12 @@ class superobPB(bufr.bufrCSV):
         return qc_df
 
 
-    def reduction_mean(self, qc_df, field):
+    def reduction_mean(self, qc_df, superobs_in, field):
         """
         Superob reduction using a regular mean
         """
 
-        superob_groups = np.unique(self.df['superob_groups'])
+        superob_groups = superobs_in['superob_groups'].values
         superobs = np.zeros(len(superob_groups)) * np.nan
         for i, g in enumerate(superob_groups):
             values = qc_df.loc[qc_df['superob_groups'] == g, field].values
@@ -238,14 +237,12 @@ class superobPB(bufr.bufrCSV):
         return superobs
     
     
-    def reduction_hor_cressman(self, qc_df, superob_in, field, R='dx'):
+    def reduction_hor_cressman(self, qc_df, superob_in, field, R=1, use_metpy=True):
         """
         Superob reduction in horizontal using a Cressman successive corrections method
         """
 
         # Define R2
-        if R == 'dx':
-            R = np.sqrt(2) * self.map_proj_kw['dx']
         R2 = R*R
 
         # Perform map projection on superob coordinates
@@ -255,16 +252,22 @@ class superobPB(bufr.bufrCSV):
         superob_y = superob_in['YMP'].values
 
         # Create superobs
-        superobs = np.zeros(len(superob_groups)) * np.nan
-        for i, g in enumerate(superob_groups):
-            subset_df = qc_df.loc[qc_df['superob_groups'] == g].copy()
-            if len(subset_df) > 0:
-                raw_vals = subset_df[field].values
-                d2 = ((subset_df['XMP'] - superob_x[i])**2 + 
-                      (subset_df['YMP'] - superob_y[i])**2).values
-                d2[d2 > R2] = np.nan
-                wgts = (R2 - d2) / (R2 + d2)
-                superobs[i] = np.nansum(wgts * raw_vals) / np.nansum(wgts)
+        if use_metpy:
+            ob_pts = np.array([[x, y] for x, y in zip(qc_df['XMP'].values, qc_df['YMP'].values)])
+            superob_pts = np.array([[x, y] for x, y in zip(superob_x, superob_y)])
+            superobs = mi.interpolate_to_points(ob_pts, qc_df[field].values, interp_type='cressman',
+                                                minimum_neighbors=1, search_radius=R)
+        else:
+            superobs = np.zeros(len(superob_groups)) * np.nan
+            for i, g in enumerate(superob_groups):
+                subset_df = qc_df.loc[qc_df['superob_groups'] == g].copy()
+                if len(subset_df) > 0:
+                    raw_vals = subset_df[field].values
+                    d2 = ((subset_df['XMP'] - superob_x[i])**2 + 
+                          (subset_df['YMP'] - superob_y[i])**2).values
+                    d2[d2 > R2] = np.nan
+                    wgts = (R2 - d2) / (R2 + d2)
+                    superobs[i] = np.nansum(wgts * raw_vals) / np.nansum(wgts)
 
         return superobs
 

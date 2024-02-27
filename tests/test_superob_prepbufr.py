@@ -15,6 +15,7 @@ import numpy as np
 import pytest
 import pandas as pd
 import xarray as xr
+import metpy.interpolate as mi
 
 import pyDA_utils.map_proj as mp
 import pyDA_utils.superob_prepbufr as sp
@@ -198,8 +199,9 @@ class TestSuperob():
                                                          'DHR':{'method':'mean', 'qm_kw':{'field':'TQM', 'thres':2}, 'reduction_kw':{}}})
 
         # Check DHR manually
+        superobs_in = sample_pb.df.drop_duplicates('superob_groups').copy()
         qc_df = sample_pb.qc_obs(field='TQM', thres=2)
-        superobs_DHR = sample_pb.reduction_mean(qc_df, 'DHR')
+        superobs_DHR = sample_pb.reduction_mean(qc_df, superobs_in, 'DHR')
         
         assert np.all(superobs_DHR == superobs['DHR'].values)
         assert np.array_equal(superobs.columns, sample_pb.df.columns)
@@ -224,13 +226,15 @@ class TestSuperob():
         Check that the average is applied correctly for a single superob
         """
 
+        superobs_in = sample_pb.df.drop_duplicates('superob_groups').copy()
+
         # Create input df
         sample_pb.assign_superob('temporal')
         qc_df = sample_pb.qc_obs(field='TQM', thres=2)
         group1 = qc_df['superob_groups'].values[0]
 
         # Create superobs
-        superobs = sample_pb.reduction_mean(qc_df, 'TOB')
+        superobs = sample_pb.reduction_mean(qc_df, superobs_in, 'TOB')
 
         assert superobs[0] == np.mean(qc_df.loc[qc_df['superob_groups'] == group1, 'TOB'])
 
@@ -240,15 +244,18 @@ class TestSuperob():
         We'll just try running this method for now
         """
 
+        # Create input df
+        grid_fname='./data/RRFS_grid_max.nc'
+        sample_pb.assign_superob('grid', grouping_kw={'grid_fname':grid_fname})
+        qc_df = sample_pb.qc_obs(field='TQM', thres=2)
+
         # Obtain superob coordinates
         superobs_in = sample_pb.reduction_superob(var_dict={})
 
-        # Create input df
-        sample_pb.assign_superob('temporal')
-        qc_df = sample_pb.qc_obs(field='TQM', thres=2)
-        group1 = qc_df['superob_groups'].values[0]
+        superobs_no_metpy = sample_pb.reduction_hor_cressman(qc_df, superobs_in, 'TOB', use_metpy=False)
+        superobs_metpy = sample_pb.reduction_hor_cressman(qc_df, superobs_in, 'TOB', use_metpy=False)
 
-        sample_pb.reduction_hor_cressman(qc_df, superobs_in, 'TOB')
+        assert np.allclose(superobs_no_metpy, superobs_metpy)
 
 
 """
