@@ -278,21 +278,31 @@ class TestSuperob():
         # Obtain superob coordinates
         superobs_in = sample_pb.reduction_superob(var_dict={})
 
-        superobs_no_metpy = sample_pb.reduction_vert_cressman(qc_df, superobs_in, 'TOB', R=5, use_metpy=False)
-        superobs_no_metpy_R100 = sample_pb.reduction_vert_cressman(qc_df, superobs_in, 'TOB', R=100, use_metpy=False)
-        superobs_metpy = sample_pb.reduction_vert_cressman(qc_df, superobs_in, 'TOB', R=5, use_metpy=True)
-        superobs_metpy_R100 = sample_pb.reduction_vert_cressman(qc_df, superobs_in, 'TOB', R=100, use_metpy=True)
+        # Use fixed R
+        superobs_no_metpy = sample_pb.reduction_vert_cressman(qc_df, superobs_in, 'TOB', R=50, use_metpy=False)
+        superobs_metpy = sample_pb.reduction_vert_cressman(qc_df, superobs_in, 'TOB', R=50, use_metpy=True)
 
         # Print statements for debugging
         print()
         print('reduction_vert_cressman')
         print(superobs_no_metpy)
-        print(superobs_no_metpy_R100)
         print(superobs_metpy)
-        print(superobs_metpy_R100)
         print()
 
         assert np.allclose(superobs_no_metpy, superobs_metpy)
+
+        # Use adaptive R
+        superobs_no_metpy_Rmax = sample_pb.reduction_vert_cressman(qc_df, superobs_in, 'TOB', R='max', use_metpy=False)
+        superobs_metpy_Rmax = sample_pb.reduction_vert_cressman(qc_df, superobs_in, 'TOB', R='max', use_metpy=True)
+
+        # Print statements for debugging
+        print()
+        print('reduction_vert_cressman (Rmax)')
+        print(superobs_no_metpy_Rmax)
+        print(superobs_metpy_Rmax)
+        print()
+
+        assert np.allclose(superobs_no_metpy_Rmax, superobs_metpy_Rmax)
 
 
 """
