@@ -110,7 +110,7 @@ class superobPB(bufr.bufrCSV):
 
         # First test to ensure that the map projection is appropriate
         if check_proj:
-            tol = 0.2
+            tol = 0.6 / self.map_proj_kw['dx']
             if subtract_360_lon_grid:
                 lon = grid_ds[grid_field_names['x']].values - 360
             else:
@@ -121,6 +121,7 @@ class superobPB(bufr.bufrCSV):
                                               proj_kw=self.map_proj_kw)
             if (x_rmse > tol) or (y_rmse > tol):
                 print('map projection is not appropriate for this grid')
+                print(f'tolerance = {tol}')
                 print(f'X RMSE = {x_rmse}')
                 print(f'Y RMSE = {y_rmse}')
 
