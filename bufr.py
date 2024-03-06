@@ -732,16 +732,14 @@ def RH_check(df):
     return df
 
 
-def combine_bufr(df1, df2):
+def combine_bufr(df_list):
     """
-    Combine two BUFR CSV DataFrames into one
+    Combine several BUFR CSV DataFrames into one
 
     Parameters
     ----------
-    df1 : pd.DataFrame
-        First DataFrame containing BUFR output
-    df2 : pd.DataFrame
-        Second DataFrame containing BUFR output
+    df_list : list of pd.DataFrame
+        List of DataFrames containing BUFR output
 
     Returns
     -------
@@ -750,8 +748,9 @@ def combine_bufr(df1, df2):
 
     """
 
-    df2['nmsg'] = df2['nmsg'] + df1['nmsg'].max()
-    combined = pd.concat([df1, df2])
+    for i in range(1, len(df_list)):
+        df_list[i]['nmsg'] = df_list[i]['nmsg'] + df_list[i-1]['nmsg'].max()
+    combined = pd.concat(df_list)
     combined.reset_index(inplace=True, drop=True)
 
     return combined 
