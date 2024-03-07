@@ -238,7 +238,7 @@ class superobPB(bufr.bufrCSV):
         return superobs
     
     
-    def reduction_hor_cressman(self, qc_df, superob_in, field, R=1, use_metpy=False):
+    def reduction_hor_cressman(self, qc_df, superob_in, field, R=1, use_metpy=False, min_neighbor=3):
         """
         Superob reduction in horizontal using a Cressman successive corrections method
         """
@@ -256,25 +256,28 @@ class superobPB(bufr.bufrCSV):
         superobs = np.zeros(len(superob_groups)) * np.nan
         for i, g in enumerate(superob_groups):
             subset_df = qc_df.loc[qc_df['superob_groups'] == g].copy()
-            if len(subset_df) > 0:
+            if len(subset_df) >= min_neighbor:
                 raw_vals = subset_df[field].values
                 if use_metpy:
                     ob_pts = np.array([[x, y] for x, y in zip(subset_df['XMP'].values, subset_df['YMP'].values)])
                     superob_pts = np.array([[superob_x[i], superob_y[i]]])
                     superobs[i] = mi.interpolate_to_points(ob_pts, raw_vals, superob_pts,
                                                            interp_type='cressman',
-                                                           minimum_neighbors=1, search_radius=R)[0]
+                                                           minimum_neighbors=min_neighbor, search_radius=R)[0]
                 else:
                     d2 = ((subset_df['XMP'] - superob_x[i])**2 + 
                           (subset_df['YMP'] - superob_y[i])**2).values
                     d2[d2 > R2] = np.nan
                     wgts = (R2 - d2) / (R2 + d2)
-                    superobs[i] = np.nansum(wgts * raw_vals) / np.nansum(wgts)
+                    if np.nansum(wgts) == 0:
+                        superobs[i] = np.nanmean(raw_vals)
+                    else:
+                        superobs[i] = np.nansum(wgts * raw_vals) / np.nansum(wgts)
 
         return superobs
 
 
-    def reduction_vert_cressman(self, qc_df, superob_in, field, R=100, use_metpy=False):
+    def reduction_vert_cressman(self, qc_df, superob_in, field, R=100, use_metpy=False, min_neighbor=3):
         """
         Superob reduction in vertical using a Cressman successive corrections method
         """
@@ -291,7 +294,7 @@ class superobPB(bufr.bufrCSV):
         superobs = np.zeros(len(superob_groups)) * np.nan
         for i, g in enumerate(superob_groups):
             subset_df = qc_df.loc[qc_df['superob_groups'] == g].copy()
-            if len(subset_df) > 0:
+            if len(subset_df) >= min_neighbor:
                 raw_vals = subset_df[field].values
                 d2 = (subset_df['ZOB'].values - superob_z[i])**2
                 if R == 'max':
@@ -302,10 +305,13 @@ class superobPB(bufr.bufrCSV):
                     ob_pts = np.array([[z, 0] for z in subset_df['ZOB'].values])
                     superob_pts = np.array([[superob_z[i], 0]])
                     superobs[i] = mi.interpolate_to_points(ob_pts, raw_vals, superob_pts, interp_type='cressman',
-                                                           minimum_neighbors=1, search_radius=np.sqrt(R2))[0]
+                                                           minimum_neighbors=min_neighbor, search_radius=np.sqrt(R2))[0]
                 else:
                     wgts = (R2 - d2) / (R2 + d2)
-                    superobs[i] = np.nansum(wgts * raw_vals) / np.nansum(wgts)
+                    if np.nansum(wgts) == 0:
+                        superobs[i] = np.nanmean(raw_vals)
+                    else:
+                        superobs[i] = np.nansum(wgts * raw_vals) / np.nansum(wgts)
 
         return superobs
 
