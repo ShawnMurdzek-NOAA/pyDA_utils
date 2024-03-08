@@ -19,6 +19,7 @@ import metpy.interpolate as mi
 
 import pyDA_utils.map_proj as mp
 import pyDA_utils.superob_prepbufr as sp
+import pyDA_utils.meteo_util as mu
 
 
 #---------------------------------------------------------------------------------------------------
@@ -35,6 +36,25 @@ class TestSuperob():
         sp_obj.map_proj_kw = {'dx':3, 'knowni':899, 'knownj':529}
         return sp_obj
    
+
+    def test_create_superobs_vprofs(self):
+        """
+        Test the entire superob pipeline for vertical profiles
+        """
+  
+        # Create superobs using default parameters
+        fname = './data/202204291500.rap.fake.prepbufr.vprof_test.csv'
+        sp_obj = sp.superobPB(fname)
+        sp_obj.map_proj = mp.ll_to_xy_lc
+        sp_obj.map_proj_kw = {'dx':3, 'knowni':899, 'knownj':529}
+        superobs = sp_obj.create_superobs(rh_check=True)
+
+        # UA000281 has all RH set to 105%... Check that these are properly reduced 
+        q = superobs['QOB'] * 1e-6
+        mix = q  / (1. - q)
+        RH = (mix / mu.equil_mix(superobs['TOB'] + 273.15, superobs['POB'] * 1e2))
+        assert np.all(RH < 1.001)
+
 
     def test_assign_superob(self, sample_pb):
         """

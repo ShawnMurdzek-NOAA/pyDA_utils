@@ -718,18 +718,20 @@ def RH_check(df):
 
     """
 
+    out_df = df.copy()
+
     # Convert specific humidities to relative humidities
     q = out_df['QOB'] * 1e-6
     mix = q  / (1. - q)
     RH = (mix / mu.equil_mix(out_df['TOB'] + 273.15, out_df['POB'] * 1e2))  
 
-    RH[RH > 1] = 0
+    RH[RH > 1] = 1
     
     # Convert back to specific humidity
     mix = RH * mu.equil_mix(out_df['TOB'] + 273.15, out_df['POB'] * 1e2)
     out_df['QOB'] = 1e6 * (mix / (1. + mix))
 
-    return df
+    return out_df
 
 
 def combine_bufr(df_list):
