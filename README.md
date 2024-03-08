@@ -23,3 +23,5 @@ To only run the tests in a specific file, run `pytest <filname>`.
 To only run a specific test in a specific file, run `pytest <filename>::<testname>`.  
   
 To see how long a test takes, use the `--duration=0` flag.
+
+To print stdout from a test, add the `-s` flag. Note that stdout for a test is automatically printed when a test fails.

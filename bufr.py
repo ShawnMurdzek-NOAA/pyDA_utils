@@ -318,6 +318,7 @@ def plot_obs(bufr_df, colorcode=None, fig=None, nrows=1, ncols=1, axnum=1,
         cbar = plt.colorbar(cax, ax=ax)
         cbar.set_label(colorcode, size=14)
     else:
+        plot_df = bufr_df.copy()
         ax.scatter(plot_df['XOB'], plot_df['YOB'], transform=ccrs.PlateCarree(), **kwargs)
 
     return ax
@@ -717,30 +718,30 @@ def RH_check(df):
 
     """
 
+    out_df = df.copy()
+
     # Convert specific humidities to relative humidities
     q = out_df['QOB'] * 1e-6
     mix = q  / (1. - q)
     RH = (mix / mu.equil_mix(out_df['TOB'] + 273.15, out_df['POB'] * 1e2))  
 
-    RH[RH > 1] = 0
+    RH[RH > 1] = 1
     
     # Convert back to specific humidity
     mix = RH * mu.equil_mix(out_df['TOB'] + 273.15, out_df['POB'] * 1e2)
     out_df['QOB'] = 1e6 * (mix / (1. + mix))
 
-    return df
+    return out_df
 
 
-def combine_bufr(df1, df2):
+def combine_bufr(df_list):
     """
-    Combine two BUFR CSV DataFrames into one
+    Combine several BUFR CSV DataFrames into one
 
     Parameters
     ----------
-    df1 : pd.DataFrame
-        First DataFrame containing BUFR output
-    df2 : pd.DataFrame
-        Second DataFrame containing BUFR output
+    df_list : list of pd.DataFrame
+        List of DataFrames containing BUFR output
 
     Returns
     -------
@@ -749,8 +750,9 @@ def combine_bufr(df1, df2):
 
     """
 
-    df2['nmsg'] = df2['nmsg'] + df1['nmsg'].max()
-    combined = pd.concat([df1, df2])
+    for i in range(1, len(df_list)):
+        df_list[i]['nmsg'] = df_list[i]['nmsg'] + df_list[i-1]['nmsg'].max()
+    combined = pd.concat(df_list)
     combined.reset_index(inplace=True, drop=True)
 
     return combined 
