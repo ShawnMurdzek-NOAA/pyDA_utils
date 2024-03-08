@@ -27,6 +27,15 @@ class superobPB(bufr.bufrCSV):
 
     Parameters
     ----------
+    fname : string
+        BUFR CSV file name
+    debug : integer, optional
+        Debug level. Higher number indicates more output printed to the screen
+    map_proj : function, optional
+        Function used for the map projection to map the observations to the superob grid. Only 
+        used when using the 'grid' grouping option.
+    map_proj_kw : dictionary, optional
+        Keyword arguments for map_proj
 
     """
 
@@ -39,9 +48,42 @@ class superobPB(bufr.bufrCSV):
         self.map_proj_kw = map_proj_kw
 
 
-    def create_superobs(self, obtypes=[136], grouping='temporal', grouping_kw={}, reduction_kw={}, rh_check=True):
+    def create_superobs(self, obtypes=[136], grouping='temporal', grouping_kw={}, reduction_kw={}, 
+                        rh_check=True):
         """
         Main driver to create superobs
+
+        Parameters
+        ----------
+        obtypes : list of integers, optional
+            Observation types to create superobs for
+        grouping : string, optional
+            Grouping strategy used for superobs (options: 'temporal' and 'grid')
+        grouping_kw : dictionary, optional
+            Keyword argument passed to the grouping method
+        reduction_kw : dictionary, optional
+            Keyword arguments passed to the reduction method
+        rh_check : boolean, optional
+            Option to adjust relative humidities > 100% down to 100% after creating superobs
+
+        Returns
+        -------
+        superobs : pd.DataFrame
+            DataFrame containing superobs
+
+        Notes
+        -----
+        Superobbing is performed in two general steps:
+        
+        1) Grouping: Assign raw observations to a superob group. All raw observations within a given
+            group will be combined into a single superob. Superob groups are listed in the 
+            'superob_groups' column in self.df. Note that the grouping methods do not return anything,
+            instead, they add the 'superob_groups' column to self.df. An example of a superob group is 
+            all observations within a 30-s window.
+
+        2) Reduction: Reduce all raw observations within a superob group into a single observation.
+            An example of a reduction is taking the mean of all the raw observations within a group.
+        
         """ 
 
         # Only retain obs that will be part of the superob
@@ -64,7 +106,19 @@ class superobPB(bufr.bufrCSV):
 
     def assign_superob(self, grouping, grouping_kw={}):
         """
-        Wrapper for superob assignment functions
+        Wrapper for superob assignment (grouping) functions
+
+        Parameters
+        ----------
+        grouping : string
+            Grouping strategy. Options: 'temporal' or 'grid'.
+        grouping_kw : dictionary, optional
+            Keyword arguments passed to the grouping method
+
+        Returns
+        -------
+        None
+        
         """
 
         if grouping == 'temporal':
@@ -78,6 +132,16 @@ class superobPB(bufr.bufrCSV):
     def grouping_temporal(self, window=60):
         """
         Create superob groups based on a temporal window (in sec)
+
+        Parameters
+        ----------
+        window : float, optional
+            Temporal window used to group raw observations (s)
+            
+        Returns
+        -------
+        None
+        
         """
 
         # Prep
@@ -103,7 +167,26 @@ class superobPB(bufr.bufrCSV):
                       subtract_360_lon_grid=True,
                       interp_kw={}):
         """
-        Create superob groups based on the model grid
+        Create superob groups based on an input grid
+
+        Parameters
+        ----------
+        grid_fname : string, optional
+            NetCDF file containing the grid used for creating superob groups
+        grid_field_names : dictionary, optional
+            Names of the x, y, x, and surface height fields in grid_fname
+        check_proj : boolean, optional
+            Option to check whether the map projection is appropriate for the grid_fname
+        subtract_360_lon_grid : boolean, optional
+            Option to subtract 360 deg from the longitude coordinates in grid_fname
+        interp_kw : dictionary, optional
+            Keyword arguments passed to the method that interpolates the surface height field
+            to the observation locations
+
+        Returns
+        -------
+        None
+        
         """
 
         # Prep
@@ -150,6 +233,18 @@ class superobPB(bufr.bufrCSV):
     def map_proj_obs(self, df):
         """
         Perform map projection on observation locations
+
+        Parameters
+        ----------
+        df : pd.DataFrame
+            DataFrame containing observations (i.e., data read from a BUFR CSV file)
+
+        Returns
+        -------
+        df : pd.DataFrame
+            Same as the input DataFrame, but with extra columns (XMP, YMP) that give the 
+            observation coordinates based on the map projection
+            
         """
 
         xob, yob = self.map_proj(df['YOB'], df['XOB'] - 360, **self.map_proj_kw)
@@ -162,6 +257,22 @@ class superobPB(bufr.bufrCSV):
     def interp_gridded_field_obs(self, outfield, grid_pts, grid_vals, interp_kw={}):
         """
         Interpolate a gridded field to observation locations
+
+        Parameters
+        ----------
+        outfield : string
+            Column name to save interpolated output to
+        grid_pts : tuple of arrays
+            Coordinate of gridded input, in format (x, y)
+        grid_vals : array
+             Values corresponding to grid_pts
+        interp_kw : dictionary, optional
+            Keyword arguments passed to RegularGridInterpolator
+
+        Returns
+        -------
+        None
+        
         """
 
         # Create interpolation object
@@ -175,6 +286,21 @@ class superobPB(bufr.bufrCSV):
     def reduction_superob(self, var_dict={'TOB':{'method':'mean', 'qm_kw':{'field':'TQM', 'thres':2}, 'reduction_kw':{}}}):
         """
         Wrapper for superob reduction functions
+
+        Parameters
+        ----------
+        var_dict : dictionary, optional
+            Reduction options for each variable being reduced. Keys are the variables, and the values
+            are the reduction options. Options must include the following:
+                'method' : Method used for reduction. Options: 'mean', 'hor_cressman', 'vert_cressman'
+                'qm_kw' : Keywords for quality control
+                'reduction_kw' : Additional keywords passed to the reduction method
+
+        Returns
+        -------
+        superobs : pd.DataFrame
+            DataFrame containing superobs
+        
         """
 
         # Create superob DataFrame for results
@@ -216,6 +342,19 @@ class superobPB(bufr.bufrCSV):
     def qc_obs(self, field='TQM', thres=2):
         """
         Quality control observations
+
+        Parameters
+        ----------
+        field : string, optional
+            Quality mark field
+        thres : integer, optional
+            Quality mark threshold. All observations with quality marks above this threshold are removed
+
+        Returns
+        -------
+        qc_df : pd.DataFrame
+            DataFrame only containing observations that passed QC
+            
         """
 
         qc_df = self.df.copy()
@@ -229,6 +368,21 @@ class superobPB(bufr.bufrCSV):
     def reduction_mean(self, qc_df, superobs_in, field):
         """
         Superob reduction using a regular mean
+
+        Parameters
+        ----------
+        qc_df : pd.DataFrame
+            Input DataFrame containing quality-controlled raw observations with assigned superob groups
+        superobs_in : pd.DataFrame
+            DataFrame containing fields that have already been superobbed
+        field : string
+            Field to create superobs for (e.g., 'TOB')
+
+        Returns
+        -------
+        superobs : array
+            Superobs for the given field
+            
         """
 
         superob_groups = superobs_in['superob_groups'].values
@@ -244,6 +398,29 @@ class superobPB(bufr.bufrCSV):
     def reduction_hor_cressman(self, qc_df, superob_in, field, R=1, use_metpy=False, min_neighbor=3):
         """
         Superob reduction in horizontal using a Cressman successive corrections method
+
+        Parameters
+        ----------
+        qc_df : pd.DataFrame
+            Input DataFrame containing quality-controlled raw observations with assigned superob groups
+        superobs_in : pd.DataFrame
+            DataFrame containing fields that have already been superobbed. Necessary because the Cressman
+            average needs the coordinates of the superob groups
+        field : string
+            Field to create superobs for (e.g., 'TOB')
+        R : integer, optional
+            Maximum search radius in the horizontal. Uses the same units as XMP and YMP
+        use_metpy : boolean, optional
+            Option to use the MetPy Cressman implementation
+        min_neighbor : integer, optional
+            Minimum number of neighbors to create a superob. NaNs are assigned to groups with too few
+            neighbors. 
+
+        Returns
+        -------
+        superobs : array
+            Superobs for the given field
+          
         """
 
         # Define R2
@@ -283,6 +460,31 @@ class superobPB(bufr.bufrCSV):
     def reduction_vert_cressman(self, qc_df, superob_in, field, R=100, use_metpy=False, min_neighbor=3):
         """
         Superob reduction in vertical using a Cressman successive corrections method
+        
+        Parameters
+        ----------
+        qc_df : pd.DataFrame
+            Input DataFrame containing quality-controlled raw observations with assigned superob groups
+        superobs_in : pd.DataFrame
+            DataFrame containing fields that have already been superobbed. Necessary because the Cressman
+            average needs the coordinates of the superob groups
+        field : string
+            Field to create superobs for (e.g., 'TOB')
+        R : integer or 'max', optional
+            Maximum search radius in the horizontal. Uses the same units as XMP and YMP. 'Max' sets
+            R to be the maximum distance between any raw observation height and the superob group height.
+        use_metpy : boolean, optional
+            Option to use the MetPy Cressman implementation
+        min_neighbor : integer, optional
+            Minimum number of neighbors to create a superob. NaNs are assigned to groups with too few
+            neighbors. It is recommended that a value > 1 is used, as using min_neighbor = 1 with 
+            R = 'max' results in a divide by zero warning because R2 = d2 = 0
+
+        Returns
+        -------
+        superobs : array
+            Superobs for the given field
+          
         """
 
         # Define R2
