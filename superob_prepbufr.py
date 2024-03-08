@@ -39,7 +39,7 @@ class superobPB(bufr.bufrCSV):
         self.map_proj_kw = map_proj_kw
 
 
-    def create_superobs(self, obtypes=[136], grouping='temporal', grouping_kw={}, reduction_kw={}):
+    def create_superobs(self, obtypes=[136], grouping='temporal', grouping_kw={}, reduction_kw={}, rh_check=True):
         """
         Main driver to create superobs
         """ 
@@ -55,6 +55,9 @@ class superobPB(bufr.bufrCSV):
 
         # Clean up
         superobs.reset_index(inplace=True, drop=True)
+
+        # Ensure that RH stays below 100%
+        superobs = bufr.RH_check(superobs)
 
         return superobs
     
