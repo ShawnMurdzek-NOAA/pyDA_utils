@@ -23,6 +23,7 @@ import metpy.calc as mc
 from metpy.units import units
 import os
 import inspect
+import warnings
 
 import pyDA_utils.gsi_fcts as gsi
 import pyDA_utils.meteo_util as mu
@@ -756,6 +757,72 @@ def combine_bufr(df_list):
     combined.reset_index(inplace=True, drop=True)
 
     return combined 
+
+
+def compute_ceil(df, use_typ=[187], no_ceil=2e4):
+    """
+    Compute cloud ceilings using cloud amount (CLAM) and cloud base (HOCB)
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        DataFrame containing BUFR output
+    use_typ : list of integers, optional
+        List of observation types (3-digit codes) to compute cloud ceilings for
+    no_ceil : float, optional
+        Fill value for no ceiling detected (which is different from a missing ceiling!)
+
+    Returns
+    -------
+    ceil : array
+        Ceiling field. NaNs indicate missing obs and 2e4 indicates no ceiling detected.
+
+    Notes
+    -----
+    This code is loosely based on the nonvariational cloud analysis
+
+    THIS CODE HAS NOT BEEN TESTED, USE AT YOUR OWN RISK
+    """
+
+    warnings.warn("Warning: Function to compute cloud ceilings is not thoroughly tested." +
+                  "Consider using the CEILING field instead")
+
+    # Initialize ceil field
+    ceil = np.ones(len(df)) * np.nan
+
+    # Extract some arrays
+    clam = df['CLAM'].values
+    hocb = df['HOCB'].values
+    sid = df['SID'].values
+    dhr = df['DHR'].values
+    typ = df['TYP'].values
+
+    # Create a reduced CLAM array to aid in computing ceilings
+    clam_red = np.ones(clam.size, dtype=np.int32) * -1
+    clam_red[((clam >= -0.1) & (clam <= 3.1)) | np.isclose(clam, 11) | np.isclose(clam, 13)] = 0
+    clam_red[((clam >= 3.9) & (clam <= 9.1)) | np.isclose(clam, 12)] = 1
+
+    # Determine ceilings
+    for t in use_typ:
+        sid_for_t = sid[typ == t]
+        dhr_for_t = dhr[typ == t]
+        for s in np.unique(sid_for_t):
+            for d in np.unique(dhr_for_t[s == sid_for_t]):
+                idx = np.where((s == sid) & np.isclose(d, dhr) & (t == typ))[0]
+                if np.all(clam_red[idx] < 0):
+                    # CLAM in (10, 14, 15, or another number)
+                    # Missing value
+                    continue
+                elif np.any(clam_red[idx] == 1):
+                    # CLAM in (4, 5, 6, 7, 8, 9, 12)
+                    # Ceiling detected
+                    ceil[idx[0]] = np.nanmin(hocb[idx][clam_red[idx] == 1])
+                else:
+                    # CLAM is in (0, 1, 2, 3, 11, 13)
+                    # No ceiling detected
+                    ceil[idx[0]] = no_ceil
+
+    return ceil
 
 
 """
