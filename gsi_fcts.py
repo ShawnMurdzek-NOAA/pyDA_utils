@@ -13,6 +13,10 @@ import xarray as xr
 import pandas as pd
 import numpy as np
 import scipy.stats as ss
+import metpy.calc as mc
+from metpy.units import units
+import metpy.constants as const
+import scipy.interpolate as si
 
 
 #---------------------------------------------------------------------------------------------------
@@ -267,6 +271,86 @@ def gsi_flags_table(diag_df, field='Prep_Use_Flag'):
     flag_df.sort_values('Observation_Type', inplace=True)
 
     return flag_df
+
+
+def interpolate_to_obs(diag_df, lat2d, lon2d, field2d, method='nearest'):
+    """
+    Interpolate a 2D field to the observation locations in a DataFrame
+
+    Parameters
+    ----------
+    diag_df : pd.DataFrame
+        DataFrame containing GSI diag file output
+    lat2d : array
+        Latitudes for the 2D field
+    lon2d : array
+        Longitudes for the 2D field
+    field2d: array
+        2D field to interpolate
+    method : string, optional
+        Interpolation method ('nearest' or 'linear')
+
+    Returns
+    -------
+    interp_field : array
+        1D array of values interpolated to the observation locations
+
+    """
+
+    # Convert 2D to 1D arrays
+    lat1d = np.ravel(lat2d)
+    lon1d = np.ravel(lon2d)
+    field1d = np.ravel(field2d)
+
+    # Create interpolation function
+    if method == 'nearest':
+        interp_fct = si.NearestNDInterpolator(list(zip(lon1d, lat1d)), field1d)
+    elif method == 'linear':
+        interp_fct = si.LinearNDInterpolator(list(zip(lon1d, lat1d)), field1d)
+    else:
+        print(f'interpolation method {method} is not recognized')
+
+    # Interpolate to obs locations
+    interp_field = interp_fct(diag_df['Longitude'].values - 360., diag_df['Latitude'].values)
+
+    return interp_field
+
+
+def compute_height_agl_diag(diag_df, upp_fname, interp_kw={}):
+    """
+    Compute height AGL for obs in a GSI diag file
+
+    Parameters
+    ----------
+    diag_df : pd.DataFrame
+        DataFrame containing GSI diag file output
+    upp_fname : string
+        UPP output file name
+    interp_kw : dictionary, optional
+        Keyword arguments passed to interpolate_to_obs()
+
+    Returns
+    -------
+    out_df : pd.DataFrame
+        Same as diag_df, but with an additional field called 'Height_AGL'
+
+    """
+
+    # Open UPP file
+    upp_ds = xr.open_dataset(upp_fname, engine='pynio')
+
+    # Compute height from geopotential
+    upp_elev = mc.geopotential_to_height(upp_ds['HGT_P0_L1_GLC0'].values * units.m * const.g).magnitude
+
+    # Interpolate terrain elevation to obs locations
+    ob_elev = interpolate_to_obs(diag_df, upp_ds['gridlat_0'].values, upp_ds['gridlon_0'].values, 
+                                 upp_elev, **interp_kw)
+
+    # Create output DataFrame
+    out_df = diag_df.copy()
+    out_df['Height_AGL'] = out_df['Height'] - ob_elev
+
+    return out_df
 
 
 def test_var_f_stat(df1, df2, types=None, pcrit=0.05):
