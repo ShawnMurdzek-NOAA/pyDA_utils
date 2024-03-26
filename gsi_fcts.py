@@ -67,7 +67,9 @@ def read_errtable(fname):
     for key in errors.keys():
         errors[key] = pd.DataFrame(errors[key])
         for h in headers[1:]:
-            errors[key][h].where(errors[key][h] < 5e8, inplace=True)
+            # Raises a warning in newer versions of pandas
+            #errors[key][h].where(errors[key][h] < 5e8, inplace=True)
+            errors[key].loc[errors[key][h] > 5e8, h] = np.nan
 
     return errors
 
