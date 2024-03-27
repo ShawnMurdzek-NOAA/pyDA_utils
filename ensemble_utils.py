@@ -136,8 +136,8 @@ class ensemble():
         tmp_ds = self.ds[self.mem_names[0]]
         for lon in [min_lon, max_lon]:
             for lat in [min_lat, max_lat]:
-                iind[n], jind[n] = np.unravel_index(np.argmin((tmp_ds['gridlon_0'] - lon)**2 + 
-                                                              (tmp_ds['gridlat_0'] - lat)**2), 
+                iind[n], jind[n] = np.unravel_index(np.argmin((tmp_ds['gridlon_0'].values - lon)**2 + 
+                                                              (tmp_ds['gridlat_0'].values - lat)**2), 
                                                     tmp_ds['gridlon_0'].shape)
                 n = n + 1
 
@@ -311,7 +311,7 @@ class ensemble():
         return indomain
 
    
-    def _subset_bufr(self, subset, nonan_field, DHR=0):
+    def _subset_bufr(self, subset, nonan_field=np.nan, DHR=0):
         """
         Subset BUFR obs to only contin certain ob subsets in a certain domain with a certain field
         is not NaN
@@ -320,8 +320,8 @@ class ensemble():
         ----------
         subset : list of strings
             List of observation subsets to retain
-        nonan_field : string
-            Only retain rows if this field is not a NaN
+        nonan_field : string, optional
+            Only retain rows if this field is not a NaN. Set to NaN to not use
         DHR : float, optional
             If multiple obs exist for a single SID, only retain the obs closest to DHR. Set to NaN
             to turn off 
@@ -355,8 +355,9 @@ class ensemble():
         red_ob_csv.reset_index(inplace=True, drop=True)
  
         # Only retain rows where the nonan_field is not a NaN
-        red_ob_csv = red_ob_csv.loc[~np.isnan(red_ob_csv[nonan_field])]
-        red_ob_csv.reset_index(inplace=True, drop=True)
+        if nonan_field == nonan_field:
+            red_ob_csv = red_ob_csv.loc[~np.isnan(red_ob_csv[nonan_field])]
+            red_ob_csv.reset_index(inplace=True, drop=True)
 
         # Only retain the single ob closest to DHR for each site
         if ~np.isnan(DHR):
@@ -489,7 +490,7 @@ class ensemble():
         return fig
 
     
-    def plot_bufr_obs(self, axes, field, bufr_subset, nonan_field, scatter_kw={}):
+    def plot_bufr_obs(self, axes, field, bufr_subset, nonan_field=np.nan, scatter_kw={}):
         """
         Plot BUFR obs on a pre-existing set of axes
 
@@ -501,7 +502,7 @@ class ensemble():
             BUFR field to plot
         bufr_subset : list of strings
             List of ob subsets to retain
-        nonan_field : string
+        nonan_field : string, optional
             Only retain BUFR obs if this field is not a NaN
         scatter_kw : dictionary, optional
             Keyword arguments passed to the scatter function
@@ -509,7 +510,7 @@ class ensemble():
         """
  
         # Subset the BUFR obs
-        plot_csv = self._subset_bufr(bufr_subset, nonan_field)
+        plot_csv = self._subset_bufr(bufr_subset, nonan_field=nonan_field)
 
         # Plot BUFR obs
         for ax in axes:
