@@ -785,7 +785,7 @@ def compute_ceil(df, use_typ=[187], no_ceil=2e4):
     """
 
     warnings.warn("Warning: Function to compute cloud ceilings is not thoroughly tested." +
-                  "Consider using the CEILING field instead")
+                  " Consider using the CEILING field instead")
 
     # Initialize ceil field
     ceil = np.ones(len(df)) * np.nan
