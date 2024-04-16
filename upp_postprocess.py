@@ -71,8 +71,8 @@ def compute_ceil_agl(ds, no_ceil=2e4, fields={'CEIL_LEGACY':'HGT_P0_L215_GLC0',
         ds[new_name].attrs['units'] = 'm AGL'
 
         # Set "no ceiling" (NaN or 2e4) to proper fill value
-        ds[new_name][np.isnan(ds[fields[new_name]])] = no_ceil
-        ds[new_name][np.isclose(ds[fields[new_name]].values, 2e4)] = no_ceil
+        ds[new_name].values[np.isnan(ds[fields[new_name]])] = no_ceil
+        ds[new_name].values[np.isclose(ds[fields[new_name]].values, 2e4)] = no_ceil
 
     return ds
 
