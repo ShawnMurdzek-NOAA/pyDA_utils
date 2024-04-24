@@ -567,7 +567,7 @@ class PlotOutput():
         self.metadata.pop('barb1')
 
         if not hasattr(self, 'ax'):
-            self._create_hcrsxn_ax(data)
+            self._create_hcrsxn_ax(xdata)
 
         self.cax = self.ax.barbs(coords[1][::thin, ::thin], coords[0][::thin, ::thin], 
                                  xdata[::thin, ::thin], ydata[::thin, ::thin], 
@@ -597,7 +597,7 @@ class PlotOutput():
         self.metadata.pop('vector1')
 
         if not hasattr(self, 'ax'):
-            self._create_hcrsxn_ax(data)
+            self._create_hcrsxn_ax(xdata)
 
         self.cax = self.ax.quiver(coords[1][::thin, ::thin], coords[0][::thin, ::thin], 
                                   xdata[::thin, ::thin], ydata[::thin, ::thin], 
@@ -618,7 +618,7 @@ class PlotOutput():
         """
 
         if not hasattr(self, 'ax'):
-            self._create_hcrsxn_ax(data)
+            self._create_hcrsxn_ax(None)
 
         self.cax = self.ax.plot(lon, lat, transform=ccrs.PlateCarree(), **plt_kw)
 

@@ -334,7 +334,7 @@ class superobPB(bufr.bufrCSV):
             elif var_dict[field]['method'] == 'vert_cressman':
                 superobs.loc[:, field] = self.reduction_vert_cressman(qc_df, superobs, field, **var_dict[field]['reduction_kw'])
             else:
-                print(f'reduction method {reduction} is not a valid option')
+                print(f"reduction method {var_dict[field]['method']} is not a valid option")
         
         return superobs
 

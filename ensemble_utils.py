@@ -567,7 +567,7 @@ class ensemble():
         # Unravel state_matrix
         sample_ds = self.subset_ds[self.mem_names[0]]
         if mem_name != None:
-            mem_idx = np.where(self.mem_names == mem_nam)[0][0]
+            mem_idx = np.where(self.mem_names == mem_name)[0][0]
             tmp_vect = np.squeeze(self.state_vector[entry][:, mem_idx])
         elif ~np.isnan(bec_idx):
             tmp_vect = np.squeeze(self.state_matrix[entry][bec_idx, :])
