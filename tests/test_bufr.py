@@ -13,12 +13,9 @@ shawn.s.murdzek@noaa.gov
 
 import numpy as np
 import pytest
-import pandas as pd
-import xarray as xr
-import metpy.interpolate as mi
+import copy
 
 import pyDA_utils.bufr as bufr
-import pyDA_utils.meteo_util as mu
 
 
 #---------------------------------------------------------------------------------------------------
@@ -32,6 +29,42 @@ class TestBUFR():
         fname = './data/202202011200.rap.prepbufr.for_bufr_test.csv'
         return bufr.bufrCSV(fname)
    
+
+    def test_select_obtypes(self, sample_pb):
+        """
+        Test method to select ob types
+        """
+
+        tmp_bufr = copy.deepcopy(sample_pb)
+        tmp_bufr.select_obtypes([187])
+        assert np.unique(tmp_bufr.df['TYP']) == np.array([187])
+    
+
+    def test_select_dhr(self, sample_pb):
+        """
+        Test method to select ob valid time
+        """
+
+        tmp_bufr = copy.deepcopy(sample_pb)
+        tmp_bufr.select_dhr(0)
+
+        # Specific example ("'SKBO'", which should have a DHR of 0 after applying select_dhr)
+        assert np.all(np.isclose(tmp_bufr.df['DHR'].loc[tmp_bufr.df['SID'] == "'SKBO'"], 0))
+        assert len(tmp_bufr.df.loc[tmp_bufr.df['SID'] == "'SKBO'"]) == 3
+
+        # Check to ensure that no TYP/SID combo has > 1 unique DHR after applying select_dhr
+        # Also check that some TYP/SID combos have > 1 entries after applying select_dhr (this is expected if there is cloud info)
+        n_dhr = []
+        n_entries = []
+        for t in np.unique(tmp_bufr.df['TYP']):
+            t_cond = tmp_bufr.df['TYP'] == t
+            for s in np.unique(tmp_bufr.df['SID'].loc[t_cond]):
+                subset_df = tmp_bufr.df.loc[t_cond & (tmp_bufr.df['SID'] == s)]
+                n_dhr.append(len(np.unique(subset_df['DHR'])))
+                n_entries.append(len(subset_df))
+        assert np.all(np.array(n_dhr) == 1)
+        assert not np.all(np.array(n_entries) == 1)
+
 
     def test_compute_ceil(self, sample_pb):
         """

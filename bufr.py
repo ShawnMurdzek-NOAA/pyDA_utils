@@ -83,6 +83,31 @@ class bufrCSV():
         for typ in all_types:
             if typ not in ob_types:
                 self.df = self.df.loc[~np.isclose(self.df['TYP'].values, typ)]
+    
+
+    def select_dhr(self, DHR):
+        """
+        Subset the prepbufr CSV so that it only contains observations that are closest for a 
+        particular valid time
+
+        Parameters
+        ----------
+        DHR : float
+            Observation valid time
+
+        """
+
+        all_typ = np.unique(self.df['TYP'])
+        keep_idx = []
+        for t in all_typ:
+            t_cond = self.df['TYP'] == t
+            all_sid = np.unique(self.df['SID'].loc[t_cond])
+            for s in all_sid:
+                s_cond = self.df['SID'] == s
+                min_dhr = self.df.loc[np.abs(self.df['DHR'].loc[t_cond & s_cond] - DHR).idxmin(), 'DHR']
+                keep_idx = keep_idx + list(self.df.loc[t_cond & s_cond & np.isclose(self.df['DHR'], min_dhr)].index)
+                
+        self.df = self.df.loc[keep_idx]
 
 
     def sample(self, fname, n=2):
