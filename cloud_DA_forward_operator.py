@@ -82,17 +82,17 @@ class sfc_cld_forward_operator():
             self.data['ob_cld_precision'].append(np.zeros(nob))
             for j in range(nob):
                 if self.data['CLAM'][i][j] < 9:
-                    self.data['ob_cld_amt'][i][j] = self.data['CLAM'][i][j] / 8
-                    self.data['ob_cld_precision'][i][j] = 0.125
+                    self.data['ob_cld_amt'][i][j] = 100 * (self.data['CLAM'][i][j] / 8.)
+                    self.data['ob_cld_precision'][i][j] = 12.5
                 elif np.isclose( self.data['CLAM'][i][j], 11):
-                    self.data['ob_cld_amt'][i][j] = 3./8.
-                    self.data['ob_cld_precision'][i][j] = 0.25
+                    self.data['ob_cld_amt'][i][j] = 37.5
+                    self.data['ob_cld_precision'][i][j] = 25.
                 elif np.isclose( self.data['CLAM'][i][j], 12):
-                    self.data['ob_cld_amt'][i][j] = 6./8.
+                    self.data['ob_cld_amt'][i][j] = 75.
                     self.data['ob_cld_precision'][i][j] = 0.25
                 elif np.isclose( self.data['CLAM'][i][j], 13):
-                    self.data['ob_cld_amt'][i][j] = 1./8.
-                    self.data['ob_cld_precision'][i][j] = 0.25
+                    self.data['ob_cld_amt'][i][j] = 12.5
+                    self.data['ob_cld_precision'][i][j] = 25.
 
 
     def interp_model_col_to_ob(self, method='nearest', proj_str='+proj=lcc +lat_0=39 +lon_0=-96 +lat_1=33 +lat_2=45',
@@ -228,7 +228,7 @@ class sfc_cld_forward_operator():
         for i in self.data['idx']:
             bin_cld = self.data['model_col_TCDC_P0_L105_GLC0'][i] > 0.1
 
-            if np.isclose(self.data['CLAM'][i][0], 0):
+            if ~np.isclose(self.data['CLAM'][i][0], 0):
                 # At least one cloudy ob
                 for j, (zob, amtob) in enumerate(zip(self.data['HOCB'][i], self.data['CLAM'][i])):
                     # Ignore model clouds within vert_roi of cloud ob
@@ -266,6 +266,21 @@ class sfc_cld_forward_operator():
                     if ((self.data['hofx'][i][j] >= (self.data['ob_cld_amt'][i][j] - self.data['ob_cld_precision'][i][j])) and
                         (self.data['hofx'][i][j] <= (self.data['ob_cld_amt'][i][j] + self.data['ob_cld_precision'][i][j]))):
                          self.data['hofx'][i][j] = self.data['ob_cld_amt'][i][j]
+    
+
+    def compute_global_OmB_RMSD(self):
+        """
+        Compute O-B RMSD across the entire domain
+        """
+
+        diff = []
+        for i in self.data['idx']:
+            for o, b in zip(self.data['ob_cld_amt'][i], self.data['hofx'][i]):
+                diff.append(o - b)
+        
+        rmsd = np.sqrt(np.mean(np.array(diff)**2))
+
+        return rmsd
 
 
 def find_bufr_cloud_obs(bufr_obj, use_types=[180, 181, 182, 183, 184, 185, 186, 187, 188], anal_dhr=0.0):
@@ -371,6 +386,9 @@ if __name__ == '__main__':
     cld_hofx.add_clear_obs()
     cld_hofx.decode_ob_clam()
     cld_hofx.interp_model_to_obs()
+
+    print()
+    print(f'O-B RMSD = {cld_hofx.compute_global_OmB_RMSD()}')
 
     print()
     print(f'Done! Elapsed time = {(dt.datetime.now() - start).total_seconds()} s')
