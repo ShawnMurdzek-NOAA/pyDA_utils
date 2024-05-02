@@ -5,6 +5,7 @@ Passed Arguments
 ----------------
     sys.argv[1] : BUFR CSV observation file name
     sys.argv[2] : UPP model output
+    sys.argv[3] : Option to create plots (default: No plots. Set to 1 to make plots)
 
 shawn.s.murdzek@noaa.gov
 """
@@ -22,9 +23,11 @@ import pyproj
 import scipy.spatial as ss
 import scipy.interpolate as si
 import scipy.ndimage as sn
+import matplotlib.pyplot as plt
 
 from pyDA_utils import bufr
 import pyDA_utils.upp_postprocess as uppp
+import cloud_DA_forward_operator_viz as cfov
 
 
 #---------------------------------------------------------------------------------------------------
@@ -261,26 +264,43 @@ class sfc_cld_forward_operator():
                                      bounds_error=False,
                                      fill_value="extrapolate")  # Not sure if "extrapolate" will have undesirable results...
             self.data['hofx'].append(interp_fct(self.data['HOCB'][i]))
+
+            # This block of code is rather ad hoc and offers a lot of opportunity for tuning
             if match_precision:
                 for j in range(len(self.data['hofx'][i])):
                     if ((self.data['hofx'][i][j] >= (self.data['ob_cld_amt'][i][j] - self.data['ob_cld_precision'][i][j])) and
-                        (self.data['hofx'][i][j] <= (self.data['ob_cld_amt'][i][j] + self.data['ob_cld_precision'][i][j]))):
+                        (self.data['hofx'][i][j] <= (self.data['ob_cld_amt'][i][j] + self.data['ob_cld_precision'][i][j])) and
+                        (self.data['hofx'][i][j] >= 1) and (self.data['hofx'][i][j] <= 99) and
+                        (self.data['ob_cld_amt'][i][j] >= 1) and (self.data['ob_cld_amt'][i][j] <= 99)):
                          self.data['hofx'][i][j] = self.data['ob_cld_amt'][i][j]
     
 
-    def compute_global_OmB_RMSD(self):
+    def compute_OmB(self):
         """
-        Compute O-B RMSD across the entire domain
+        Compute O-B
         """
 
-        diff = []
+        self.data['OmB'] = []
         for i in self.data['idx']:
-            for o, b in zip(self.data['ob_cld_amt'][i], self.data['hofx'][i]):
-                diff.append(o - b)
-        
-        rmsd = np.sqrt(np.mean(np.array(diff)**2))
+            self.data['OmB'].append(self.data['ob_cld_amt'][i] - self.data['hofx'][i])
 
-        return rmsd
+    
+    def flatten1d(self, field):
+        out_list = []
+        for val in self.data[field]:
+            out_list = out_list + list(val)
+        return np.array(out_list)
+
+
+    def compute_global_RMS(self, field='OmB'):
+        """
+        Compute the RMS value for the input field across the entire domain
+        """
+
+        field1d = self.flatten1d(field)
+        rms = np.sqrt(np.mean(np.array(field1d)**2))
+
+        return rms
 
 
 def find_bufr_cloud_obs(bufr_obj, use_types=[180, 181, 182, 183, 184, 185, 186, 187, 188], anal_dhr=0.0):
@@ -388,7 +408,18 @@ if __name__ == '__main__':
     cld_hofx.interp_model_to_obs()
 
     print()
-    print(f'O-B RMSD = {cld_hofx.compute_global_OmB_RMSD()}')
+    cld_hofx.compute_OmB()
+    print(f"O-B RMSD = {cld_hofx.compute_global_RMS(field='OmB')}")
+
+    if len(sys.argv) > 3:
+        if sys.argv[3]:
+            print()
+            print('Making plots...')
+            cld_hofx_viz = cfov.sfc_cld_forward_operator_viz(cld_hofx)
+            cld_hofx_viz.scatterplot()
+            plt.savefig('cld_amt_scatterplot.png')
+            cld_hofx_viz.hist(plot_param={'field':'OmB'})
+            plt.savefig('OmB_hist.png')
 
     print()
     print(f'Done! Elapsed time = {(dt.datetime.now() - start).total_seconds()} s')
