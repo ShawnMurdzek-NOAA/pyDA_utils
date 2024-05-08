@@ -27,7 +27,7 @@ import matplotlib.pyplot as plt
 
 from pyDA_utils import bufr
 import pyDA_utils.upp_postprocess as uppp
-import cloud_DA_forward_operator_viz as cfov
+import pyDA_utils.cloud_DA_forward_operator_viz as cfov
 
 
 #---------------------------------------------------------------------------------------------------
