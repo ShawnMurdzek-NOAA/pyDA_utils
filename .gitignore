@@ -6,6 +6,9 @@
 # Swap files
 *.swp
 
+# BUFR files
+*prepbufr*
+
 # Figure files
 *.png
 *.pdf
