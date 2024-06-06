@@ -37,6 +37,16 @@ import pyDA_utils.cloud_DA_forward_operator_viz as cfov
 class sfc_cld_forward_operator():
     """
     Forward operator that interpolates model cloud fraction to ceilometer obs
+
+    Parameters
+    ----------
+    ob_df : pd.DataFrame
+        BUFR ceilometer cloud obs used by the forward operator
+    model_ds : xr.Dataset
+        Model background
+    debug : integer, optional
+        Debugging level (higher numbers print more output)
+
     """
 
     def __init__(self, ob_df, model_ds, debug=0):
@@ -76,6 +86,15 @@ class sfc_cld_forward_operator():
         """
         Decode ceilometer cloud amount field (CLAM)
         See the BUFR table here: https://www.emc.ncep.noaa.gov/mmb/data_processing/table_20.htm#0-20-011
+
+        Parameters
+        ----------
+        None
+
+        Returns
+        -------
+        None. Adds 'ob_cld_amt' and 'ob_cld_precision' fields to self.data
+
         """
         self.data['ob_cld_amt'] = []
         self.data['ob_cld_precision'] = []
@@ -101,7 +120,21 @@ class sfc_cld_forward_operator():
     def interp_model_col_to_ob(self, method='nearest', proj_str='+proj=lcc +lat_0=39 +lon_0=-96 +lat_1=33 +lat_2=45',
                                fields=['TCDC_P0_L105_GLC0', 'height_agl']):
         """
-        Interpolate model vertical columns to ceilometer (lat, lon) locations
+        Wrapper method for interpolation of model vertical columns to ceilometer (lat, lon) locations
+
+        Parameters
+        ----------
+        method : string, optional
+            Interpolation method. Only supported method currently is 'nearest'
+        proj_str : string, optional
+            Map projection string for pyproj
+        fields : list of strings, optional
+            Model fields to interpolate
+        
+        Returns
+        -------
+        None. Adds fields 'model_col_<field>' to self.data
+
         """
 
         self._apply_map_projection(proj_str=proj_str)
@@ -125,6 +158,16 @@ class sfc_cld_forward_operator():
         """
         Apply map projection to model and obs (lat, lon) locations. Interpolation should ideally
         be performed in the map projection space.
+
+        Parameters
+        ----------
+        proj_str : string, optional
+            Map projection string for pyproj
+        
+        Returns
+        -------
+        None. Adds fields 'x_proj' and 'y_proj' to self.data
+
         """
 
         self.proj_str = proj_str
@@ -132,7 +175,7 @@ class sfc_cld_forward_operator():
 
         self.data['x_proj'], self.data['y_proj'] = self.proj(self.data['lon'], self.data['lat'])
 
-        xtmp, ytmp = self.proj(self.model_ds['gridlon_0'], self.model_ds['gridlat_0'])
+        xtmp, ytmp = self.proj(self.model_ds['gridlon_0'].values, self.model_ds['gridlat_0'].values)
         for data, name in zip([xtmp, ytmp], ['x_proj', 'y_proj']):
             self.model_ds[name] = xr.DataArray(data=data, 
                                                dims=self.model_ds['gridlon_0'].dims,
@@ -143,6 +186,15 @@ class sfc_cld_forward_operator():
     def _compute_model_height_agl(self):
         """
         Compute model heights AGL (from gpm MSL)
+
+        Parameters
+        ----------
+        None
+
+        Returns
+        -------
+        None. Adds the field 'height_agl' to self.model_ds
+
         """
 
         self.model_ds['height_agl'] = xr.DataArray(data=uppp.convert_gpm_msl_to_m_agl(self.model_ds, 'HGT_P0_L105_GLC0'),
@@ -154,6 +206,16 @@ class sfc_cld_forward_operator():
     def _model_nearest_interp_col(self, fields=['TCDC_P0_L105_GLC0', 'height_agl']):
         """
         Use nearest neighbor interpolation to interpolate model columns to obs (lat, lon) locations
+
+        Parameters
+        ----------
+        fields : list of strings, optional
+            Fields to interpolat
+        
+        Returns
+        -------
+        None. Adds the fields 'model_col_<field>' to self.data
+
         """
 
         fields_model = {}
@@ -175,7 +237,23 @@ class sfc_cld_forward_operator():
     def impose_hgt_limits(self, min_hgt=10, max_hgt=3658, hgt_field='model_col_height_agl',
                           fields=['model_col_height_agl', 'model_col_TCDC_P0_L105_GLC0']):
         """
-        Impose min and max height limits to either the model of obs
+        Impose min and max height limits to either the model or obs
+
+        Parameters
+        ----------
+        min_hgt : float, optional
+            Minimum height to search for clouds (m AGL)
+        max_hgt : float, optional
+            Maximum height to search for clouds (m AGL)
+        hgt_field : string, optional
+            Field containing heights AGL in the model
+        fields : list of strings, optional
+            Model fields to truncate based on min_hgt and max_hgt
+        
+        Returns
+        -------
+        None
+
         """
 
         for i in self.data['idx']:
@@ -190,6 +268,18 @@ class sfc_cld_forward_operator():
     def impose_min_cld_frac(self, min_cld_frac=5, field='model_col_TCDC_P0_L105_GLC0'):
         """
         Impose a minimum cloud fraction to the model cloud fraction field
+
+        Parameters
+        ----------
+        min_cld_frac : integer, optional
+            Model cloud fraction below which cloud fractions are set to 0 (%)
+        field : string, optional
+            Model field containing cloud fractions
+        
+        Returns
+        -------
+        None
+
         """
 
         for i in self.data['idx']:
@@ -203,6 +293,15 @@ class sfc_cld_forward_operator():
     def clean_obs(self):
         """
         Remove entries that no longer have obs associated with them
+
+        Parameters
+        ----------
+        None
+
+        Returns
+        -------
+        None
+
         """
 
         keep_idx = []
@@ -216,10 +315,23 @@ class sfc_cld_forward_operator():
         self.data['idx'] = np.arange(len(keep_idx))
 
     
-    def add_clear_obs(self, vert_roi=250):
+    def add_clear_obs_model(self, vert_roi=250):
         """
         Add clear obs where there are model clouds but no observed clouds
+
+        Parameters
+        ----------
+        vert_roi : float, optional
+            Vertical radius of influence (m)
+        
+        Returns
+        -------
+        None
+
         """
+
+        print("sfc_cld_forward_operator.add_clear_obs_model() is deprecated!" + 
+              "Try using sfc_cld_forward_operator.add_clear_obs_model() instead.")
 
         # Check whether ob_cld_amt is defined
         try: 
@@ -251,9 +363,83 @@ class sfc_cld_forward_operator():
                     self.data[amt_field][i] = np.concatenate([self.data[amt_field][i], np.array([0])])
 
 
+    def add_clear_obs(self, clr_ob_locs=np.arange(250, 3500, 500), terminate_clr_col=[8]):
+        """
+        Add clear obs at regular intervals where ceilometers do not report clouds
+
+        Parameters
+        ----------
+        clr_ob_locs : np.array, optional
+            Vertical locations for clear obs (m AGL)
+        terminate_clr_col : list, optional
+            CLAM values used to terminate column of clear obs (i.e., do not add clear obs above the 
+            height of one of the CLAM values)
+        
+        Returns
+        -------
+        None
+
+        """
+
+        # Check whether ob_cld_amt is defined
+        try: 
+            self.data['ob_cld_amt']
+            amt_field = 'ob_cld_amt'
+        except KeyError:
+            amt_field = 'CLAM'
+
+        if self.debug > 0:
+            print()
+            print('Inside sfc_cld_forward_operator.add_clear_obs()...')
+            print(f'amt_field = {amt_field}')
+            print(f'clr_ob_locs = {clr_ob_locs}')
+
+        for i in self.data['idx']:
+            if np.isclose(self.data[amt_field][i][0], 0):
+                # Clear ceilometer ob
+                self.data['HOCB'][i] = clr_ob_locs
+                self.data[amt_field][i] = np.zeros(len(clr_ob_locs))
+            
+            else:
+                # At least one cloudy ob
+                mask = np.ones(len(clr_ob_locs), dtype=bool)
+                for j, (zob, amtob) in enumerate(zip(self.data['HOCB'][i], self.data['CLAM'][i])):
+                    # Remove the closest clear ob to each cloudy ob
+                    mask[np.argmin(np.abs(clr_ob_locs - zob))] = 0
+                    if ((amtob in terminate_clr_col) or j == 3):
+                        # No obs above an overcast ob
+                        # Also cannot have > 3 obs, so if this is the highest ob, 
+                        # do not add clear obs above this ob
+                        mask[clr_ob_locs >= zob] = 0
+                self.data['HOCB'][i] = np.concatenate([self.data['HOCB'][i], clr_ob_locs[mask]])
+                self.data[amt_field][i] = np.concatenate([self.data[amt_field][i], np.zeros(len(clr_ob_locs[mask]))])
+                idx_sort = np.argsort(self.data['HOCB'][i])
+                self.data['HOCB'][i] = self.data['HOCB'][i][idx_sort]
+                self.data[amt_field][i] = self.data[amt_field][i][idx_sort]
+
+                if ((self.debug > 1) and (i < 5)):
+                    print(i)
+                    print(f'mask = {mask}')
+                    print(f'clear ob hgts = {clr_ob_locs[mask]}')
+                    print(f"data['HOCB'][i] = {self.data['HOCB'][i]}")
+                    print(f'data[amt_field][i] = {self.data[amt_field][i]}')
+
+
     def interp_model_to_obs(self, method='nearest', match_precision=True):
         """
         Perform interpolation within a model column to the observed cloud locations
+
+        Parameters
+        ----------
+        method : string, optional
+            Interpolation method. Passed to si.interp1d
+        match_precision : boolean, optional
+            Option to have the interpolated cloud fraction match the precision of the obs
+        
+        Returns
+        -------
+        None. Adds the field 'hofx' to self.data
+
         """
 
         self.data['hofx'] = []
@@ -278,6 +464,15 @@ class sfc_cld_forward_operator():
     def compute_OmB(self):
         """
         Compute O-B
+
+        Parameters
+        ----------
+        None
+
+        Returns
+        -------
+        None. Adds the field 'OmB' to self.data
+
         """
 
         self.data['OmB'] = []
@@ -286,6 +481,20 @@ class sfc_cld_forward_operator():
 
     
     def flatten1d(self, field):
+        """
+        Create a 1D array with all values in self.data[field]
+        
+        Parameters
+        ----------
+        field : string
+            Field from self.data to flatten
+
+        Returns
+        -------
+        np.array
+            Flattened data
+
+        """
         out_list = []
         for val in self.data[field]:
             out_list = out_list + list(val)
@@ -295,6 +504,17 @@ class sfc_cld_forward_operator():
     def compute_global_RMS(self, field='OmB'):
         """
         Compute the RMS value for the input field across the entire domain
+
+        Parameters
+        ----------
+        field : string, optional
+            Field from self.data to compute the root-mean-square of
+        
+        Returns
+        -------
+        rms : float
+            Root-mean-square of the input field
+
         """
 
         field1d = self.flatten1d(field)
@@ -367,6 +587,72 @@ def remove_missing_cld_ob(bufr_df):
     return bufr_df
 
 
+def ceilometer_hofx_driver(cld_ob_df, model_ds, debug=0, verbose=1, 
+                           interp_col_kw={}, hgt_lim_kw={}, min_frac_kw={}, clr_ob_kw={},
+                           interp_z_kw={}):
+    """
+    Main driver for the ceilometer cloud forward operator
+
+    Parameters
+    ----------
+    cld_ob_df : pd.DataFrame
+        Ceilometer cloud obs
+    model_ds : xr.Dataset
+        Background model data
+    debug : integer, optional
+        Debug level. Increase for more debugging output
+    verbose : integer, optional
+        Verbosity. Increase for more general output
+    interp_col_kw : dictionary, optional
+        Keyword arguments passed to sfc_cld_forward_operator.interp_model_col_to_ob()
+    hgt_lim_kw : dictionary, optional
+        Keyword arguments passed to sfc_cld_forward_operator.impose_hgt_limits()
+    min_frac_kw : dictionary, optional
+        Keyword arguments passed to sfc_cld_forward_operator.impose_min_cld_frac()
+    clr_ob_kw : dictionary, optional
+        Keyword arguments passed to sfc_cld_forward_operator.add_clear_obs()
+    interp_z_kw : dictionary, optional
+        Keyword arguments passed to sfc_cld_forward_operator.interp_model_to_obs()
+    
+    Returns
+    -------
+    cld_hofx : sfc_cld_forward_operator
+        Ceilometer cloud forward operator object
+        
+    """
+
+    if verbose > 0: print('Creating ceilometer forward operator object')
+    cld_hofx = sfc_cld_forward_operator(cld_ob_df, model_ds, debug=debug)
+
+    if verbose > 0: print('Interpolating model columns to obs locations...')
+    cld_hofx.interp_model_col_to_ob(**interp_col_kw)
+
+    if verbose > 0: print('Imposing height limits and min cld fraction...')
+    cld_hofx.impose_hgt_limits(hgt_field='model_col_height_agl',
+                               fields=['model_col_height_agl', 'model_col_TCDC_P0_L105_GLC0'],
+                               **hgt_lim_kw)
+    cld_hofx.impose_min_cld_frac(**min_frac_kw)
+
+    # Set clear obs to have HOCB = 50 m so they don't get removed
+    for i in cld_hofx.data['idx']:
+        if np.isclose(cld_hofx.data['CLAM'][i][0], 0):
+            cld_hofx.data['HOCB'][i][0] = 50
+    cld_hofx.impose_hgt_limits(hgt_field='HOCB',
+                               fields=['CLAM', 'HOCB'],
+                               **hgt_lim_kw)
+    cld_hofx.clean_obs()
+    for i in cld_hofx.data['idx']:
+        if np.isclose(cld_hofx.data['CLAM'][i][0], 0):
+            cld_hofx.data['HOCB'][i][0] = np.nan
+    
+    if verbose > 0: print('Adding clear obs and interpolating model clouds in column to ob heights...')
+    cld_hofx.add_clear_obs(**clr_ob_kw)
+    cld_hofx.decode_ob_clam()
+    cld_hofx.interp_model_to_obs(**interp_z_kw)
+
+    return cld_hofx
+    
+
 if __name__ == '__main__':
 
     start = dt.datetime.now()
@@ -382,30 +668,8 @@ if __name__ == '__main__':
     print('Identifying cloud obs...')
     cld_ob_df = find_bufr_cloud_obs(bufr_obj)
 
-    print('Interpolating model columns to obs locations...')
-    cld_hofx = sfc_cld_forward_operator(cld_ob_df, model_ds, debug=0)
-    cld_hofx.interp_model_col_to_ob()
-
-    print('Imposing height limits and min cld fraction...')
-    cld_hofx.impose_hgt_limits(hgt_field='model_col_height_agl',
-                               fields=['model_col_height_agl', 'model_col_TCDC_P0_L105_GLC0'])
-    cld_hofx.impose_min_cld_frac()
-
-    # Set clear obs to have HOCB = 50 m so they don't get removed
-    for i in cld_hofx.data['idx']:
-        if np.isclose(cld_hofx.data['CLAM'][i][0], 0):
-            cld_hofx.data['HOCB'][i][0] = 50
-    cld_hofx.impose_hgt_limits(hgt_field='HOCB',
-                               fields=['CLAM', 'HOCB'])
-    cld_hofx.clean_obs()
-    for i in cld_hofx.data['idx']:
-        if np.isclose(cld_hofx.data['CLAM'][i][0], 0):
-            cld_hofx.data['HOCB'][i][0] = np.nan
-    
-    print('Adding clear obs and interpolating model clouds in column to ob heights...')
-    cld_hofx.add_clear_obs()
-    cld_hofx.decode_ob_clam()
-    cld_hofx.interp_model_to_obs()
+    print('Running ceilometer forward operator...')
+    cld_hofx = ceilometer_hofx_driver(cld_ob_df, model_ds, debug=0, hgt_lim_kw={'max_hgt':3500})
 
     print()
     cld_hofx.compute_OmB()

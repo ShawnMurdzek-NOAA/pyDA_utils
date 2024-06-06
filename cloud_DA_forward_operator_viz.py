@@ -132,7 +132,7 @@ class sfc_cld_forward_operator_viz():
                                'label':'Ob Cloud Amount (%)', 
                                'kwargs':{'vmin':0, 'vmax':100, 's':75, 'edgecolors':'k', 'cmap':'plasma_r'}}):
 
-        fig, ax, return_fig = self._create_plot(ax, figsize=(10, 8))
+        fig, ax, return_fig = self._create_plot(ax, figsize=(12, 8))
 
         # Reformat points for plotting
         # Use cell edges, otherwise pcolor throws a warning. Note that (idx_2d, hgt_2d) are cell centers
@@ -161,7 +161,10 @@ class sfc_cld_forward_operator_viz():
         ax.set_xlabel('Index', size=14)
         ax.set_ylabel('Height (m AGL)', size=14)
         ax.set_ylim(zlim)
-        ax.set_xticks(tick_loc, labels=np.array(tick_label, dtype=int))
+        try:
+            ax.set_xticks(tick_loc, labels=np.array(tick_label, dtype=int))
+        except TypeError:
+            None
 
         if return_fig:
             return fig
@@ -176,7 +179,7 @@ class sfc_cld_forward_operator_viz():
                                           'kwargs':{'vmin':0, 'vmax':100, 'cmap':'plasma_r'}},
                             pt_param={'field':'ob_cld_amt', 
                                       'label':'Ob Cloud Amount (%)', 
-                                      'kwargs':{'vmin':0, 'vmax':100, 's':20, 'edgecolors':'k', 'cmap':'plasma_r'}}):
+                                      'kwargs':{'vmin':0, 'vmax':100, 's':40, 'edgecolors':'k', 'cmap':'plasma_r'}}):
         
         fig, ax, return_fig = self._create_plot(ax, figsize=(10, 8), subplot_kw={'projection':proj})
 
