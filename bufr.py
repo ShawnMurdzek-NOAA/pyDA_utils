@@ -146,6 +146,41 @@ class bufrCSV():
         fptr.close() 
 
 
+    def ob_hist(self, var, ax=None, hist_kw={}, plot_kw={}):
+        """
+        Plot all observation values as a histogram
+
+        Parameters
+        ----------
+        var : string
+            Variable to plot (e.g., TOB, QOB)
+        ax : matplotlib.axes, optional
+            Axes to plot histogram on. Set to None to create a new figure
+        hist_kw : dictionary, optional
+            Keyword arguments to pass to numpy.histogram
+        plot_kw : dictionary, optional
+            Keyword arguments to pass to matplotlib.pyplot.plot
+
+        Returns
+        -------
+        ax : matplotlib.axes
+            Axes with plotted data
+
+        """
+
+        # Create histogram counts
+        cts, bin_edges = np.histogram(self.df[var].values, **hist_kw)
+
+        # Plot data
+        if ax == None:
+            fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(8, 8))
+            ax.set_xlabel(var, size=12)
+
+        ax.plot(0.5*(bin_edges[:-1] + bin_edges[1:]), cts, **plot_kw)
+
+        return ax
+
+
 #---------------------------------------------------------------------------------------------------
 # Additional Functions
 #---------------------------------------------------------------------------------------------------
