@@ -99,7 +99,8 @@ class superobPB(bufr.bufrCSV):
         superobs.reset_index(inplace=True, drop=True)
 
         # Ensure that RH stays below 100%
-        superobs = bufr.RH_check(superobs)
+        if rh_check:
+            superobs = bufr.RH_check(superobs)
 
         return superobs
     
