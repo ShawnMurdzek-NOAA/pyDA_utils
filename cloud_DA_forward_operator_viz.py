@@ -20,12 +20,42 @@ import cartopy.feature as cfeature
 #---------------------------------------------------------------------------------------------------
 
 class sfc_cld_forward_operator_viz():
+    """
+    Manages a collection of methods for visualizing output from the ceilometer cloud forward operator
+
+    Parameters
+    ----------
+    cfo_obj : cloud_DA_forward_operator.sfc_cld_forward_operator() object
+
+    """
 
     def __init__(self, cfo_obj):
         self.cfo_obj = cfo_obj
     
 
     def _create_plot(self, ax, figsize=(8, 8), subplot_kw={}):
+        """
+        Generates a figure and axes if neither exist
+
+        Parameters
+        ----------
+        ax : matplotlib.axes
+            Axes object. Set to None to generate a new axes
+        figsize : tuple, optional
+            Figure size, by default (8, 8)
+        subplot_kw : dict, optional
+            Additional keywords passed to matplotlib.pyplot.add_subplot(), by default {}
+
+        Returns
+        -------
+        fig : matplotlib.figure
+            Matplotlib figure object
+        ax : matplotlib.axes
+            Matplotlib axes object
+        return_fig : boolean
+            True if a new figure was generated, otherwise False
+
+        """
         if ax is None:
             fig = plt.figure(figsize=figsize)
             ax = fig.add_subplot(1, 1, 1, **subplot_kw)
@@ -37,6 +67,28 @@ class sfc_cld_forward_operator_viz():
 
 
     def scatterplot(self, x='ob_cld_amt', y='hofx', ax=None, scatter_kwargs={}, one_to_one=True):
+        """
+        Generate a scatterplot. Default is to plot observed cloud amount vs H(x)
+
+        Parameters
+        ----------
+        x : str, optional
+            Variable to plot on x-axis (must be in cfo_obj.data), by default 'ob_cld_amt'
+        y : str, optional
+            Variable to plot on x-axis (must be in cfo_obj.data), by default 'hofx'
+        ax : matplotlib.axes, optional
+            Axes to add plot to, by default None (which generates a new axes)
+        scatter_kwargs : dict, optional
+            Keyword arguments passed to matplotlib.pyplot.scatter, by default {}
+        one_to_one : bool, optional
+            Option to plot 1-to-1 line, by default True
+
+        Returns
+        -------
+        ax (matplotlib.axes) or fig (matplotlib.figure)
+            Axes or figure object containing the plot
+
+        """
 
         fig, ax, return_fig = self._create_plot(ax)
         
@@ -60,6 +112,24 @@ class sfc_cld_forward_operator_viz():
 
     def hist(self, ax=None, plot_param={'field':'OmB', 'xlabel':'O $-$ B (cloud fraction, %)'},
              hist_kwargs={'bins':17, 'edgecolor':'k', 'linewidth':1}):
+        """
+        Generate a 1-D histogram
+
+        Parameters
+        ----------
+        ax : matplotlib.axes, optional
+            Axes to add plot to, by default None (which generates a new axes)
+        plot_param : dict, optional
+            Plotting parameters, by default {'field':'OmB', 'xlabel':'O $-$ B (cloud fraction, %)'}
+        hist_kwargs : dict, optional
+            Keyword arguments passed to matplotlib.pyplot.hist, by default {'bins':17, 'edgecolor':'k', 'linewidth':1}
+
+        Returns
+        -------
+        ax (matplotlib.axes) or fig (matplotlib.figure)
+            Axes or figure object containing the plot
+
+        """
 
         fig, ax, return_fig = self._create_plot(ax)
 
@@ -80,6 +150,29 @@ class sfc_cld_forward_operator_viz():
     
 
     def _reformat_arrays(self, field, idx, zfield='model_col_height_agl'):
+        """
+        Reformat model data from cfo_obj.data into 2D arrays with dimensions (height, ob index)
+
+        Parameters
+        ----------
+        field : string
+            Model field from cfo_obj.data to reformat
+        idx : tuple-like
+            Obs indices to include in the reformatted data
+        zfield : str, optional
+            Model height field from cfo_obj.data, by default 'model_col_height_agl'
+
+        Returns
+        -------
+        idx_2d : np.array
+            Obs indices from cfo_obj.data['idx']. Dimensions (height, ob index)
+        hgt_2d : np.array
+            Height array. Dimensions (height, ob index)
+        field_2d : np.array
+            Data from cfo_obj.data[field]. Dimensions (height, ob index)
+
+        """
+
         zdim = max([len(self.cfo_obj.data[zfield][i]) for i in idx])
         idx_2d = np.zeros([zdim, len(idx)])
         hgt_2d = np.zeros([zdim, len(idx)])
@@ -94,6 +187,24 @@ class sfc_cld_forward_operator_viz():
     
 
     def _compute_cell_edges(self, hgt_2d):
+        """
+        Compute 2D arrays of cell edges from 2D arrays of cell centers.
+        Note that the cell edge arrays increase the lengths of each of the two original dimensions by 1
+
+        Parameters
+        ----------
+        hgt_2d : np.array
+            Model height cel centers as a 2D array
+
+        Returns
+        -------
+        idx_edges : np.array
+            2D array of ob index edges (e.g., -0.5, 0.5, 1.5, etc.)
+        hgt_edges : np.array
+            2D array of height edges. Linear interpolation is used between height cell centers from 
+            adjacent ob indices
+
+        """
         ni, nj = np.shape(hgt_2d)
         idx_edges = np.zeros([ni+1, nj+1])
         hgt_edges = np.zeros([ni+1, nj+1])
@@ -112,6 +223,24 @@ class sfc_cld_forward_operator_viz():
 
 
     def _reformat_pts(self, field, idx, zfield='HOCB'):
+        """
+        Create 1D arrays of ob index, height, and another specified field
+
+        Parameters
+        ----------
+        field : string
+            Observation field from cfo_obj.data to create a 1D array for
+        idx : tuple-like
+            Observation indices to include
+        zfield : str, optional
+            Field from cfo_obj.data corresponding to ob height, by default 'HOCB'
+
+        Returns
+        -------
+        1D arrays for ob index, ob height, and ob field
+
+        """
+
         idx_list = []
         field_list = []
         hgt_list = []
@@ -131,6 +260,32 @@ class sfc_cld_forward_operator_viz():
                      pt_param={'field':'ob_cld_amt', 
                                'label':'Ob Cloud Amount (%)', 
                                'kwargs':{'vmin':0, 'vmax':100, 's':75, 'edgecolors':'k', 'cmap':'plasma_r'}}):
+        """
+        Generate a 2D plot showing vertical columns above each ceilometer, with one field plotted 
+        using pcolor and the other using plot
+
+        Parameters
+        ----------
+        ax : matplotlib.axes, optional
+            Axes object to add plot to, by default None (which generates a new axes)
+        idx : tuple-like, optional
+            Ceilometer indices from cfo_obj.data['idx'] to plot (note this differs from SID), 
+            by default list(range(10))
+        zlim : list, optional
+            Vertical range (m), by default [0, 3500]
+        pcolor_param : dict, optional
+            Plotting parameters for matplotlib.pyplot.pcolor, by default 
+            {'field':'model_col_TCDC_P0_L105_GLC0', 'label':'Model Cloud Amount (%)', 'kwargs':{'vmin':0, 'vmax':100, 'cmap':'plasma_r'}}
+        pt_param : dict, optional
+            Plotting parameters for matplotlib.pyplot.plot, by default 
+            {'field':'ob_cld_amt', 'label':'Ob Cloud Amount (%)', 'kwargs':{'vmin':0, 'vmax':100, 's':75, 'edgecolors':'k', 'cmap':'plasma_r'}}
+
+        Returns
+        -------
+        ax (matplotlib.axes) or fig (matplotlib.figure)
+            Axes or figure object containing the plot
+
+        """
 
         fig, ax, return_fig = self._create_plot(ax, figsize=(12, 8))
 
@@ -180,6 +335,35 @@ class sfc_cld_forward_operator_viz():
                             pt_param={'field':'ob_cld_amt', 
                                       'label':'Ob Cloud Amount (%)', 
                                       'kwargs':{'vmin':0, 'vmax':100, 's':40, 'edgecolors':'k', 'cmap':'plasma_r'}}):
+        """
+        Generate a plot of composite cloud cover (i.e., max cloud fraction in a vertical column) 
+        with point observations overlaid
+
+        Parameters
+        ----------
+        ax : matplotlib.axes, optional
+            Axes object to add plot to, by default None (which generates a new axes)
+        proj : cartopy.crs, optional
+            Map projection, by default ccrs.LambertConformal()
+        map_scale : str, optional
+            Map scale, by default '50m'
+        lon_lim : tuple-like, optional
+            Longitude plotting limits (deg E), by default [-124, -70]
+        lat_lim : tuple-like, optional
+            Latitude plotting limits (deg N), by default [21, 49]
+        pcolor_param : dict, optional
+            Plotting parameters for matplotlib.pyplot.pcolor, by default 
+            {'field':'model_col_TCDC_P0_L105_GLC0', 'label':'Model Cloud Amount (%)', 'kwargs':{'vmin':0, 'vmax':100, 'cmap':'plasma_r'}}
+        pt_param : dict, optional
+            Plotting parameters for matplotlib.pyplot.plot, by default 
+            {'field':'ob_cld_amt', 'label':'Ob Cloud Amount (%)', 'kwargs':{'vmin':0, 'vmax':100, 's':40, 'edgecolors':'k', 'cmap':'plasma_r'}}
+
+        Returns
+        -------
+        ax (matplotlib.axes) or fig (matplotlib.figure)
+            Axes or figure object containing the plot
+
+        """
         
         fig, ax, return_fig = self._create_plot(ax, figsize=(10, 8), subplot_kw={'projection':proj})
 
