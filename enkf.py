@@ -19,6 +19,8 @@ class enkf_1ob():
     """
     Class for a simple EnKF that assimilates a single observation
 
+    Currently only contains the serial Ensemble Square-Root Filter (EnSRF)
+
     Parameters
     ----------
     x_b : 2D np.array
@@ -32,10 +34,11 @@ class enkf_1ob():
     localize : 1D np.array or None, optional
         Array used for localization (set to None to turn off). PbHT is multipled by localize prior
         to computing the Kalman gain. Dimensions: fcst vars
-
-    Assumptions
-    -----------
-    1. Observations are uncorrelated (i.e., R is diagonal)
+    
+    References
+    ----------
+    Theory: Houtekamer and Mitchell (2001, MWR), Whitaker and Hamill et al. (2002, MWR)
+    Algorithm: Vetra-Carvalho et al. (2018, Tellus)
 
     """
 
@@ -47,7 +50,7 @@ class enkf_1ob():
         self.ob_var = ob_var
         self.local = localize
 
-        self.m, self.N = x_b.shape
+        self.m, self.N = x_b.shape  # m = number of model variables, N = ensemble size
 
 
     def compute_x_b_mean_dev(self):
@@ -77,6 +80,7 @@ class enkf_1ob():
     def compute_PbHT(self):
         """
         Compute P_b H^T
+
         Houtekamer and Mitchell (2001) eqn (2)
         """
 
@@ -96,6 +100,7 @@ class enkf_1ob():
     def compute_HPbHT(self):
         """
         Compute H P_b H^T
+
         Houtekamer and Mitchell (2001) eqn (3)
         """
   
@@ -107,6 +112,7 @@ class enkf_1ob():
     def compute_Kalman_gain(self):
         """
         Compute the Kalman gain
+
         Whitaker and Hamill (2002) eqn (2)
         """
 
@@ -119,6 +125,7 @@ class enkf_1ob():
     def compute_EnSRF_factor(self):
         """
         Compute the square root factor for the EnSRF
+
         Whitaker and Hamill (2002) eqn (13)
         """
 
@@ -130,6 +137,7 @@ class enkf_1ob():
     def EnSRF(self):
         """
         Compute the analysis mean and deviations using the EnSRF
+
         Whitaker and Hamill (2002)
         """
 
