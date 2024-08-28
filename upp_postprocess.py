@@ -15,6 +15,7 @@ import numpy as np
 import metpy.calc as mc
 from metpy.units import units
 import metpy.constants as const
+import copy
 
 
 #---------------------------------------------------------------------------------------------------
@@ -87,7 +88,7 @@ def compute_ceil_agl(ds, no_ceil=2e4, fields={'CEIL_LEGACY':'HGT_P0_L215_GLC0',
 
     # Compute ceilings AGL
     for new_name in fields.keys():
-        ds[new_name] = ds[fields[new_name]]
+        ds[new_name] = copy.deepcopy(ds[fields[new_name]])
         ds[new_name].values = convert_gpm_msl_to_m_agl(ds, fields[new_name])
         ds[new_name].attrs['long_name'] = 'ceiling height'
         ds[new_name].attrs['units'] = 'm AGL'
