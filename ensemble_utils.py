@@ -21,6 +21,7 @@ import pandas as pd
 import pyDA_utils.plot_model_data as pmd
 import pyDA_utils.bufr as bufr
 import pyDA_utils.map_proj as mp
+import pyDA_utils.upp_postprocess as uppp
 
 
 #---------------------------------------------------------------------------------------------------
@@ -367,6 +368,29 @@ class ensemble():
             red_ob_csv.reset_index(inplace=True, drop=True)
 
         return red_ob_csv 
+    
+
+    def preprocess_model_ceil(self, kwargs={'no_ceil':np.nan}):
+        """
+        Convert model ceiling heights to AGL and set missing values to NaN
+
+        Parameters
+        ----------
+        ens_obj : pyDA_utils.ensemble_utils.ensemble
+            Ensemble object
+        kwargs : Dictionary, optional
+            Keyword arguments passed to uppp.compute_ceil_agl()
+
+        Returns
+        -------
+        ens_obj : pyDA_utils.ensemble_utils.ensemble
+            Ensemble object
+            
+        """
+
+        for m in self.mem_names:
+            print(f'computing ceiling AGL heights for {m}')
+            self.subset_ds[m] = uppp.compute_ceil_agl(self.subset_ds[m], **kwargs)
 
 
     def interp_model_2d(self, field, lat, lon, zind=np.nan, method='nearest', verbose=False):
