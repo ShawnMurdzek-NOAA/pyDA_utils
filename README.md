@@ -13,8 +13,6 @@ This repo contains several utilities that are helpful in a variety of data assim
 
 ## Testing
 
-Before testing, the test data must be downloaded and linked (e.g., `ln -snf`) into the `tests/data` directory. Test data can be found on the MSU machines at `/work2/noaa/wrfruc/murdzek/src/bufr_test_data/pyDA_utils`.
-
 I'm slowly adding tests for this project using pytest. Some of these tests are run automatically after a push or PR to the remote. To run these tests manually (recommended before pushing), follow the following steps:  
   
 ```
