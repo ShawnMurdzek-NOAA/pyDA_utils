@@ -7,7 +7,7 @@
 *.swp
 
 # BUFR files
-*prepbufr*
+#*prepbufr*
 
 # Figure files
 *.png
