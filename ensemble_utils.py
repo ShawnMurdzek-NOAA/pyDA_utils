@@ -17,10 +17,10 @@ import cartopy.crs as ccrs
 import cartopy.feature as cfeature
 import scipy.interpolate as si
 import pandas as pd
+import copy
 
 import pyDA_utils.plot_model_data as pmd
 import pyDA_utils.bufr as bufr
-import pyDA_utils.map_proj as mp
 import pyDA_utils.upp_postprocess as uppp
 
 
@@ -86,8 +86,9 @@ class ensemble():
             self.verif_obs = bufr.bufrCSV(bufr_csv_fname)
 
         # Subset ensemble output
-        self.subset_ds = self._subset_ens_domain(lon_limits[0], lon_limits[1], lat_limits[0], 
-                                                 lat_limits[1], zind, zfield=zfield)
+        if len(self.ds) > 0:
+            self.subset_ds = self._subset_ens_domain(lon_limits[0], lon_limits[1], lat_limits[0], 
+                                                     lat_limits[1], zind, zfield=zfield)
 
         # Compute state matrix, ensemble statistics, and BEC matrix
         if len(state_fields) > 0:
@@ -661,7 +662,64 @@ class ensemble():
         ax.set_title(field, size=18)
         ax.set_xlabel(self.subset_ds[self.mem_names[0]][field].attrs['units'], size=14)
 
-        return ax 
+        return ax
+
+
+    def save_subset_ens(self, fname):
+        """
+        Save the subset ensemble datasets to a netCDF file
+
+        Parameters
+        ----------
+        fname : string
+            NetCDF file to save data to
+        
+        Returns
+        -------
+        None
+
+        """ 
+
+        # Combine all ensemble data into a single dataset
+        for i, mem in enumerate(self.mem_names):
+            self.subset_ds[mem].expand_dims(dim='num', axis=0)
+            self.subset_ds[mem].assign_coords(num=(i+1))
+        concat_ds = xr.concat([self.subset_ds[m] for m in self.mem_names], 'num')
+        concat_ds['names'] = xr.DataArray(self.mem_names, dims=('num'))
+        concat_ds.attrs['lat_limits'] = self.lat_limits
+        concat_ds.attrs['lon_limits'] = self.lon_limits
+
+        concat_ds.to_netcdf(fname)
+
+
+def read_subset_ens_nc(fname):
+    """
+    Read ensemble subset data from a netCDF file
+
+    Parameters
+    ----------
+    fname : string
+        NetCDF file containing subset ensemble data
+
+    Returns
+    -------
+    ens_obj: eu.ensemble object
+        Ensemble data
+
+    """
+
+    # Read in netCDF file contents
+    concat_ds = xr.open_dataset(fname)
+
+    ens_obj = ensemble({})
+    ens_obj.subset_ds = {}
+    for i, mem in enumerate(concat_ds['names'].values):
+        ens_obj.subset_ds[mem] = copy.deepcopy(concat_ds.sel(num=i))
+    ens_obj.mem_names = copy.deepcopy(concat_ds['names'].values)
+    ens_obj.lat_limits = copy.deepcopy(concat_ds.attrs['lat_limits'])
+    ens_obj.lon_limits = copy.deepcopy(concat_ds.attrs['lon_limits'])
+
+    return ens_obj 
 
 
 """
