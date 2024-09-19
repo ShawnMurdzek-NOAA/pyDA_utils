@@ -121,12 +121,17 @@ class PlotOutput():
         if (self.outtype == 'stage4' or self.outtype == 'upp'):
             sample = list(self.ds.keys())[0]
             itime = dt.datetime.strptime(self.ds[sample].attrs['initial_time'], '%m/%d/%Y (%H:%M)')
+            # forecast time may or may not be in a list
+            try:
+                ftime = int(self.ds[sample].attrs['forecast_time'][0])
+            except IndexError:
+                ftime = int(self.ds[sample].attrs['forecast_time'])
             if self.ds[sample].attrs['forecast_time_units'] == 'hours':
-                delta = dt.timedelta(hours=int(self.ds[sample].attrs['forecast_time'][0]))
+                delta = dt.timedelta(hours=ftime)
             elif self.ds[sample].attrs['forecast_time_units'] == 'minutes':
-                delta = dt.timedelta(minutes=int(self.ds[sample].attrs['forecast_time'][0]))
+                delta = dt.timedelta(minutes=ftime)
             elif self.ds[sample].attrs['forecast_time_units'] == 'days':
-                delta = dt.timedelta(days=int(self.ds[sample].attrs['forecast_time'][0]))
+                delta = dt.timedelta(days=ftime)
             self.time = (itime + delta).strftime('%Y%m%d %H:%M:%S UTC')
 
             
