@@ -651,9 +651,17 @@ class ensemble():
 
         Parameters
         ----------
+        field : string
+            UPP field to plot
+        ax : matplotlib.axes
+            Axes to add plot to
+        hist_kw : dictionary, optional
+            Keyword arguments passed to matplotlib.pyplot.hist
         
         Returns
         -------
+        ax : matplotlib.axes
+            Axes with histograms of deviations plotted
 
         """
 
@@ -663,6 +671,33 @@ class ensemble():
         ax.set_xlabel(self.subset_ds[self.mem_names[0]][field].attrs['units'], size=14)
 
         return ax
+    
+
+    def plot_skewts(self, lon, lat, fig, nrows=1, ncols=1, nplot=1, names=[], skew_kw={}):
+        """
+        Plot Skew-T, logp diagrams for a series of ensemble members
+
+        Parameters
+        ----------
+
+        Returns
+        -------
+
+        """
+
+        # Use all ensemble members if names is an empty list
+        if len(names) == 0:
+            names = self.mem_names
+        
+        # Make plots
+        for i, mem in enumerate(names):
+            if (i > 0) and ('skew' not in skew_kw.keys()):
+                skew_kw['skew'] = plot_obj.skew
+            plot_obj = pmd.PlotOutput([self.subset_ds[mem]], 'upp', fig, nrows, ncols, nplot)
+            plot_obj.skewt(lon, lat, **skew_kw)
+
+        return plot_obj
+
 
 
     def save_subset_ens(self, fname):

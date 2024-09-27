@@ -13,6 +13,7 @@ import numpy as np
 import pytest
 import yaml
 import pandas as pd
+import matplotlib.pyplot as plt
 
 import pyDA_utils.ensemble_utils as eu
 
@@ -106,6 +107,14 @@ class TestEnsemble():
                                                                         sample_ens.subset_ds[m]['gridlon_0'])
         linear_df = sample_ens.interp_model_2d('interp_test', ob_lat, ob_lon, method='linear')
         assert np.allclose(linear_df[mem].values, create_linear_data(ob_lat, ob_lon))
+
+
+    def test_skewt(self, sample_ens):
+        # This test just checks whether the code runs without errors
+        lat = 0.5*(sample_ens.lat_limits[0] + sample_ens.lat_limits[1])
+        lon = 0.5*(sample_ens.lon_limits[0] + sample_ens.lon_limits[1])
+        fig = plt.figure(figsize=(8, 8))
+        skew = sample_ens.plot_skewts(lon, lat, fig, skew_kw={'hodo':False, 'barbs':False})
 
 
 """
