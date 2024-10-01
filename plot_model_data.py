@@ -677,7 +677,7 @@ class PlotOutput():
 
 
     def skewt(self, lon, lat, hodo=True, barbs=True, thin=5, hodo_range=50., skew=None, 
-              hodo_ax=None, Tplot_kw={'linewidth':2.5, 'color':'r'}, 
+              hodo_ax=None, bgd_lw=0.75, Tplot_kw={'linewidth':2.5, 'color':'r'}, 
               TDplot_kw={'linewidth':2.5, 'color':'b'}, Hplot_kw={'linewidth':2},
               fields={'PRES':'PRES_P0_L105_GLC0',
                       'TMP':'TMP_P0_L105_GLC0',
@@ -706,6 +706,8 @@ class PlotOutput():
             SkewT object to plot sounding on. Set to None to create a new SkewT object
         hodo_ax : metpy.plots.Hodograph object, optional
             Hodograph object to plot hodograph on. Set to None to create a new subset axes
+        bgd_lw : float, optional
+            Linewidth for background lines (dry adiabats, moist adiabats, mixing lines)
         Tplot_kw : dict, optional
             Other keyword arguments passed to pyplot.plot when plotting temperature (key must be a string)
         TDplot_kw : dict, optional
@@ -762,9 +764,9 @@ class PlotOutput():
         self.skew.plot(p, T, **Tplot_kw)        
         self.skew.plot(p, Td, **TDplot_kw)        
 
-        self.skew.plot_dry_adiabats(linewidth=0.75)
-        self.skew.plot_moist_adiabats(linewidth=0.75)
-        self.skew.plot_mixing_lines(linewidth=0.75)
+        self.skew.plot_dry_adiabats(linewidth=bgd_lw)
+        self.skew.plot_moist_adiabats(linewidth=bgd_lw)
+        self.skew.plot_mixing_lines(linewidth=bgd_lw)
 
         if hodo:
 

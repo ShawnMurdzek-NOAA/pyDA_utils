@@ -679,10 +679,10 @@ class ensemble():
 
         Parameters
         ----------
-        lat : float
-            Latitude to plot skew-T diagram for (deg N)
         lon : float
             Longitude to plot skew-T diagram for (deg E)
+        lat : float
+            Latitude to plot skew-T diagram for (deg N)
         fig : matplotlib.pyplot.figure
             Figure to add skew-T to
         nrows : integer, optional
