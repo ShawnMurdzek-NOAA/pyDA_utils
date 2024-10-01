@@ -679,9 +679,27 @@ class ensemble():
 
         Parameters
         ----------
+        lat : float
+            Latitude to plot skew-T diagram for (deg N)
+        lon : float
+            Longitude to plot skew-T diagram for (deg E)
+        fig : matplotlib.pyplot.figure
+            Figure to add skew-T to
+        nrows : integer, optional
+            Number of subplot rows in the figure
+        ncols : integer, optional
+            Number of subplot columns in the figure
+        nplot : integer, optional
+            Subplot number used to plot the skew-T
+        names : list, optional
+            Ensemble members to plot. If blank, plot all members
+        skew_kw : dictionary, optional
+            Keyword arguments passed to the skewt function
 
         Returns
         -------
+        plot_obj : pmd.PlotOutput object
+            Object containing the skew-T plot
 
         """
 
