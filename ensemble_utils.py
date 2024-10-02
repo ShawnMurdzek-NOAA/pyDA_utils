@@ -140,7 +140,7 @@ class ensemble():
             for lat in [min_lat, max_lat]:
                 iind[n], jind[n] = np.unravel_index(np.argmin((tmp_ds['gridlon_0'].values - lon)**2 + 
                                                               (tmp_ds['gridlat_0'].values - lat)**2), 
-                                                    tmp_ds['gridlon_0'].shape)
+                                                     tmp_ds['gridlon_0'].shape)
                 n = n + 1
 
         if debug:
@@ -193,7 +193,8 @@ class ensemble():
         return subset_ds
 
 
-    def _create_state_matrix(self, fields, thin=1):
+    def _create_state_matrix(self, fields, thin=1, 
+                             loc_fields=['lv_HYBL2', 'gridlat_0', 'gridlon_0']):
         """
         Create state matrix
 
@@ -203,20 +204,43 @@ class ensemble():
             Fields to include in state matrix (for now, these must be 3D)
         thin : integer, optional
             Only use every nth point in state matrix
+        loc_fields : list of strings, optional
+            Fields to include in the "location" entry of the state matrix
 
         Returns
         -------
         state_matrix: dictionary
-            State matrix with two entries: Data and field names
+            State matrix with three entries: Data, field names, and locations
+
+        Notes
+        -----
+        The locations in the state matrix come from the first ensemble member. It is asumed that
+        every ensemble member has the same grid
 
         """
 
         loop_list = [self.subset_ds[key] for key in self.mem_names]
         len_state_vect = np.sum(np.array([loop_list[0][f][:, ::thin, ::thin].size for f in fields]))
         state_matrix = {'data':np.zeros([len_state_vect, len(loop_list)]),
-                        'vars':np.concatenate([np.array([f]*loop_list[0][f][:, ::thin, ::thin].size) for f in fields])}
+                        'vars':np.concatenate([np.array([f]*loop_list[0][f][:, ::thin, ::thin].size) for f in fields]),
+                        'loc':np.zeros([len_state_vect, len(loc_fields)])}
+        
+        # Populate data fields
         for i, ds in enumerate(loop_list):
             state_matrix['data'][:, i] = np.concatenate([np.ravel(ds[f][:, ::thin, ::thin]) for f in fields])
+
+        # Populate location fields
+        sample_ds = self.subset_ds[self.mem_names[0]]
+        nz, ny, nx = sample_ds[fields[0]][:, ::thin, ::thin].shape
+        for i, f in enumerate(loc_fields):
+            loc_shape = len(sample_ds[f].shape)
+            if loc_shape == 1:
+                loc1d = np.ravel(np.tile(sample_ds[f].values[:, np.newaxis, np.newaxis], (1, ny, nx)))
+            elif loc_shape == 2:
+                loc1d = np.ravel(np.tile(sample_ds[f].values[np.newaxis, ::thin, ::thin], (nz, 1, 1)))
+            elif loc_shape == 3:
+                loc1d = np.ravel(sample_ds[f][:, ::thin, ::thin])
+            state_matrix['loc'][:, i] = np.array(list(loc1d)*len(fields))
         
         return state_matrix
 
