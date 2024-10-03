@@ -50,7 +50,9 @@ class TestBUFR():
 
         # Specific example ("'SKBO'", which should have a DHR of 0 after applying select_dhr)
         assert np.all(np.isclose(tmp_bufr.df['DHR'].loc[tmp_bufr.df['SID'] == "'SKBO'"], 0))
-        assert len(tmp_bufr.df.loc[tmp_bufr.df['SID'] == "'SKBO'"]) == 3
+
+        # Check that SKBO has two entries (both for type 187, CLAM = 13 and 11 at HOCB = 520 and 6100)
+        assert len(tmp_bufr.df.loc[tmp_bufr.df['SID'] == "'SKBO'"]) == 2
 
         # Check to ensure that no TYP/SID combo has > 1 unique DHR after applying select_dhr
         # Also check that some TYP/SID combos have > 1 entries after applying select_dhr (this is expected if there is cloud info)
