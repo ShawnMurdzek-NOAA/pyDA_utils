@@ -13,6 +13,7 @@ import numpy as np
 import pytest
 import yaml
 import pandas as pd
+import matplotlib.pyplot as plt
 
 import pyDA_utils.ensemble_utils as eu
 
@@ -47,6 +48,49 @@ class TestEnsemble():
                            zind=param['z_ind'],
                            state_fields=param['state_vars'],
                            bec=True)
+
+
+    def test_create_state_matrix(self, sample_ens):
+        # Note: This test only examines the case where thin = 1
+
+        # First, check that the length of the state matrix is appropriate
+        sample_ds = sample_ens.subset_ds[sample_ens.mem_names[0]]
+        state_matrix = sample_ens.state_matrix
+        state_vars = np.unique(state_matrix['vars'])
+        for v in state_vars:
+            assert len(state_matrix['data'][state_matrix['vars'] == v, 0]) == sample_ds[v].size
+        
+        """
+        # Next, perform some spot checks for the state_matrix locations
+        # Most comparisons have len(idx) > 1, but that is fine as long as the first match is from (i, j, k)
+        # Cloud cover (TCDC) is ignored b/c there are several matches before (i, j, k)
+        for v in ['SPFH_P0_L105_GLC0', 'TMP_P0_L105_GLC0']:
+            sub_state = state_matrix['data'][state_matrix['vars'] == v, 0]
+            sub_loc = state_matrix['loc'][state_matrix['vars'] == v]
+            i = 0
+            for j in [0, 1]:
+                for k in [1, 4]:
+                    val = sample_ds[v].values[i, j, k]
+                    idx = np.where(np.isclose(sub_state, val))[0]
+                    print(f"v={v}, j={j}, k={k}, idx=", idx)
+                    idx = idx[0]
+                    assert np.isclose(sample_ds['lv_HYBL2'][i], sub_loc[idx, 0])
+                    assert np.isclose(sample_ds['gridlat_0'][j, k], sub_loc[idx, 1])
+                    assert np.isclose(sample_ds['gridlon_0'][j, k], sub_loc[idx, 2])
+        """
+        
+        # See if we can recover the proper 3D arrays from the state matrix
+        shape3d = sample_ds[state_vars[0]].shape
+        for v in state_vars:
+            var3d = np.reshape(state_matrix['data'][state_matrix['vars'] == v, 0], shape3d)
+            z3d = np.reshape(state_matrix['loc'][state_matrix['vars'] == v, 0], shape3d)
+            lat3d = np.reshape(state_matrix['loc'][state_matrix['vars'] == v, 1], shape3d)
+            lon3d = np.reshape(state_matrix['loc'][state_matrix['vars'] == v, 2], shape3d)
+
+            assert np.allclose(sample_ds[v].values, var3d)
+            assert z3d[0, 0, 0] == sample_ds['lv_HYBL2'][0]
+            assert np.allclose(sample_ds['gridlat_0'].values, lat3d[0, :, :])
+            assert np.allclose(sample_ds['gridlon_0'].values, lon3d[0, :, :])
 
 
     def test_check_pts_in_subset_domain(self, sample_ens):
@@ -106,6 +150,14 @@ class TestEnsemble():
                                                                         sample_ens.subset_ds[m]['gridlon_0'])
         linear_df = sample_ens.interp_model_2d('interp_test', ob_lat, ob_lon, method='linear')
         assert np.allclose(linear_df[mem].values, create_linear_data(ob_lat, ob_lon))
+
+
+    def test_skewt(self, sample_ens):
+        # This test just checks whether the code runs without errors
+        lat = 0.5*(sample_ens.lat_limits[0] + sample_ens.lat_limits[1])
+        lon = 0.5*(sample_ens.lon_limits[0] + sample_ens.lon_limits[1])
+        fig = plt.figure(figsize=(8, 8))
+        skew = sample_ens.plot_skewts(lon, lat, fig, skew_kw={'hodo':False, 'barbs':False})
 
 
 """

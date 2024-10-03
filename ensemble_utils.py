@@ -17,10 +17,11 @@ import cartopy.crs as ccrs
 import cartopy.feature as cfeature
 import scipy.interpolate as si
 import pandas as pd
+import copy
 
 import pyDA_utils.plot_model_data as pmd
 import pyDA_utils.bufr as bufr
-import pyDA_utils.map_proj as mp
+import pyDA_utils.upp_postprocess as uppp
 
 
 #---------------------------------------------------------------------------------------------------
@@ -85,8 +86,9 @@ class ensemble():
             self.verif_obs = bufr.bufrCSV(bufr_csv_fname)
 
         # Subset ensemble output
-        self.subset_ds = self._subset_ens_domain(lon_limits[0], lon_limits[1], lat_limits[0], 
-                                                 lat_limits[1], zind, zfield=zfield)
+        if len(self.ds) > 0:
+            self.subset_ds = self._subset_ens_domain(lon_limits[0], lon_limits[1], lat_limits[0], 
+                                                     lat_limits[1], zind, zfield=zfield)
 
         # Compute state matrix, ensemble statistics, and BEC matrix
         if len(state_fields) > 0:
@@ -138,7 +140,7 @@ class ensemble():
             for lat in [min_lat, max_lat]:
                 iind[n], jind[n] = np.unravel_index(np.argmin((tmp_ds['gridlon_0'].values - lon)**2 + 
                                                               (tmp_ds['gridlat_0'].values - lat)**2), 
-                                                    tmp_ds['gridlon_0'].shape)
+                                                     tmp_ds['gridlon_0'].shape)
                 n = n + 1
 
         if debug:
@@ -191,7 +193,8 @@ class ensemble():
         return subset_ds
 
 
-    def _create_state_matrix(self, fields, thin=1):
+    def _create_state_matrix(self, fields, thin=1, 
+                             loc_fields=['lv_HYBL2', 'gridlat_0', 'gridlon_0']):
         """
         Create state matrix
 
@@ -201,20 +204,43 @@ class ensemble():
             Fields to include in state matrix (for now, these must be 3D)
         thin : integer, optional
             Only use every nth point in state matrix
+        loc_fields : list of strings, optional
+            Fields to include in the "location" entry of the state matrix
 
         Returns
         -------
         state_matrix: dictionary
-            State matrix with two entries: Data and field names
+            State matrix with three entries: Data, field names, and locations
+
+        Notes
+        -----
+        The locations in the state matrix come from the first ensemble member. It is asumed that
+        every ensemble member has the same grid
 
         """
 
         loop_list = [self.subset_ds[key] for key in self.mem_names]
         len_state_vect = np.sum(np.array([loop_list[0][f][:, ::thin, ::thin].size for f in fields]))
         state_matrix = {'data':np.zeros([len_state_vect, len(loop_list)]),
-                        'vars':np.concatenate([np.array([f]*loop_list[0][f][:, ::thin, ::thin].size) for f in fields])}
+                        'vars':np.concatenate([np.array([f]*loop_list[0][f][:, ::thin, ::thin].size) for f in fields]),
+                        'loc':np.zeros([len_state_vect, len(loc_fields)])}
+        
+        # Populate data fields
         for i, ds in enumerate(loop_list):
             state_matrix['data'][:, i] = np.concatenate([np.ravel(ds[f][:, ::thin, ::thin]) for f in fields])
+
+        # Populate location fields
+        sample_ds = self.subset_ds[self.mem_names[0]]
+        nz, ny, nx = sample_ds[fields[0]][:, ::thin, ::thin].shape
+        for i, f in enumerate(loc_fields):
+            loc_shape = len(sample_ds[f].shape)
+            if loc_shape == 1:
+                loc1d = np.ravel(np.tile(sample_ds[f].values[:, np.newaxis, np.newaxis], (1, ny, nx)))
+            elif loc_shape == 2:
+                loc1d = np.ravel(np.tile(sample_ds[f].values[np.newaxis, ::thin, ::thin], (nz, 1, 1)))
+            elif loc_shape == 3:
+                loc1d = np.ravel(sample_ds[f][:, ::thin, ::thin])
+            state_matrix['loc'][:, i] = np.array(list(loc1d)*len(fields))
         
         return state_matrix
 
@@ -367,6 +393,29 @@ class ensemble():
             red_ob_csv.reset_index(inplace=True, drop=True)
 
         return red_ob_csv 
+    
+
+    def preprocess_model_ceil(self, kwargs={'no_ceil':np.nan}):
+        """
+        Convert model ceiling heights to AGL and set missing values to NaN
+
+        Parameters
+        ----------
+        ens_obj : pyDA_utils.ensemble_utils.ensemble
+            Ensemble object
+        kwargs : Dictionary, optional
+            Keyword arguments passed to uppp.compute_ceil_agl()
+
+        Returns
+        -------
+        ens_obj : pyDA_utils.ensemble_utils.ensemble
+            Ensemble object
+            
+        """
+
+        for m in self.mem_names:
+            print(f'computing ceiling AGL heights for {m}')
+            self.subset_ds[m] = uppp.compute_ceil_agl(self.subset_ds[m], **kwargs)
 
 
     def interp_model_2d(self, field, lat, lon, zind=np.nan, method='nearest', verbose=False):
@@ -626,9 +675,17 @@ class ensemble():
 
         Parameters
         ----------
+        field : string
+            UPP field to plot
+        ax : matplotlib.axes
+            Axes to add plot to
+        hist_kw : dictionary, optional
+            Keyword arguments passed to matplotlib.pyplot.hist
         
         Returns
         -------
+        ax : matplotlib.axes
+            Axes with histograms of deviations plotted
 
         """
 
@@ -637,7 +694,109 @@ class ensemble():
         ax.set_title(field, size=18)
         ax.set_xlabel(self.subset_ds[self.mem_names[0]][field].attrs['units'], size=14)
 
-        return ax 
+        return ax
+    
+
+    def plot_skewts(self, lon, lat, fig, nrows=1, ncols=1, nplot=1, names=[], skew_kw={}):
+        """
+        Plot Skew-T, logp diagrams for a series of ensemble members
+
+        Parameters
+        ----------
+        lon : float
+            Longitude to plot skew-T diagram for (deg E)
+        lat : float
+            Latitude to plot skew-T diagram for (deg N)
+        fig : matplotlib.pyplot.figure
+            Figure to add skew-T to
+        nrows : integer, optional
+            Number of subplot rows in the figure
+        ncols : integer, optional
+            Number of subplot columns in the figure
+        nplot : integer, optional
+            Subplot number used to plot the skew-T
+        names : list, optional
+            Ensemble members to plot. If blank, plot all members
+        skew_kw : dictionary, optional
+            Keyword arguments passed to the skewt function
+
+        Returns
+        -------
+        plot_obj : pmd.PlotOutput object
+            Object containing the skew-T plot
+
+        """
+
+        # Use all ensemble members if names is an empty list
+        if len(names) == 0:
+            names = self.mem_names
+        
+        # Make plots
+        for i, mem in enumerate(names):
+            if (i > 0) and ('skew' not in skew_kw.keys()):
+                skew_kw['skew'] = plot_obj.skew
+            plot_obj = pmd.PlotOutput([self.subset_ds[mem]], 'upp', fig, nrows, ncols, nplot)
+            plot_obj.skewt(lon, lat, **skew_kw)
+
+        return plot_obj
+
+
+
+    def save_subset_ens(self, fname):
+        """
+        Save the subset ensemble datasets to a netCDF file
+
+        Parameters
+        ----------
+        fname : string
+            NetCDF file to save data to
+        
+        Returns
+        -------
+        None
+
+        """ 
+
+        # Combine all ensemble data into a single dataset
+        for i, mem in enumerate(self.mem_names):
+            self.subset_ds[mem].expand_dims(dim='num', axis=0)
+            self.subset_ds[mem].assign_coords(num=(i+1))
+        concat_ds = xr.concat([self.subset_ds[m] for m in self.mem_names], 'num')
+        concat_ds['names'] = xr.DataArray(self.mem_names, dims=('num'))
+        concat_ds.attrs['lat_limits'] = self.lat_limits
+        concat_ds.attrs['lon_limits'] = self.lon_limits
+
+        concat_ds.to_netcdf(fname)
+
+
+def read_subset_ens_nc(fname):
+    """
+    Read ensemble subset data from a netCDF file
+
+    Parameters
+    ----------
+    fname : string
+        NetCDF file containing subset ensemble data
+
+    Returns
+    -------
+    ens_obj: eu.ensemble object
+        Ensemble data
+
+    """
+
+    # Read in netCDF file contents
+    concat_ds = xr.open_dataset(fname)
+
+    ens_obj = ensemble({})
+    ens_obj.subset_ds = {}
+    for i, mem in enumerate(concat_ds['names'].values):
+        ens_obj.subset_ds[mem] = copy.deepcopy(concat_ds.sel(num=i))
+    ens_obj.mem_names = copy.deepcopy(concat_ds['names'].values)
+    ens_obj.lat_limits = copy.deepcopy(concat_ds.attrs['lat_limits'])
+    ens_obj.lon_limits = copy.deepcopy(concat_ds.attrs['lon_limits'])
+
+    return ens_obj 
 
 
 """

@@ -15,6 +15,7 @@ import numpy as np
 import metpy.calc as mc
 from metpy.units import units
 import metpy.constants as const
+import copy
 
 
 #---------------------------------------------------------------------------------------------------
@@ -36,7 +37,33 @@ class upp():
         self.fname = fname
         self.ds = xr.open_dataset(fname, engine='pynio')
     
-    
+
+def convert_gpm_msl_to_m_agl(ds, field, terrain_field='HGT_P0_L1_GLC0'):
+    """
+    Convert a height field from gpm MSL to m AGL
+
+    Parameters
+    ----------
+    ds : xr.Dataset
+        Input UPP Dataset
+    field : str
+        Field to convert from gpm MSL to m AGL
+    terrain_field : str, optional
+        Field corresponding to the terrain field, by default 'HGT_P0_L1_GLC0'
+
+    Returns
+    -------
+    hgt_agl : array
+        Input field, but with heights AGL
+
+    """
+
+    terrain = mc.geopotential_to_height(ds[terrain_field].values * units.m * const.g).magnitude
+    hgt_agl = mc.geopotential_to_height(ds[field].values * units.m * const.g).magnitude - terrain
+
+    return hgt_agl
+
+
 def compute_ceil_agl(ds, no_ceil=2e4, fields={'CEIL_LEGACY':'HGT_P0_L215_GLC0', 
                                               'CEIL_EXP1':'CEIL_P0_L215_GLC0',
                                               'CEIL_EXP2':'CEIL_P0_L2_GLC0'}):
@@ -59,14 +86,10 @@ def compute_ceil_agl(ds, no_ceil=2e4, fields={'CEIL_LEGACY':'HGT_P0_L215_GLC0',
 
     """
 
-    # Extract surface terrain height
-    terrain = mc.geopotential_to_height(ds['HGT_P0_L1_GLC0'].values * units.m * const.g).magnitude
-
     # Compute ceilings AGL
     for new_name in fields.keys():
-        ds[new_name] = ds[fields[new_name]]
-        ds[new_name].values = (mc.geopotential_to_height(ds[fields[new_name]].values * units.m * const.g).magnitude -
-                               terrain)
+        ds[new_name] = copy.deepcopy(ds[fields[new_name]])
+        ds[new_name].values = convert_gpm_msl_to_m_agl(ds, fields[new_name])
         ds[new_name].attrs['long_name'] = 'ceiling height'
         ds[new_name].attrs['units'] = 'm AGL'
 

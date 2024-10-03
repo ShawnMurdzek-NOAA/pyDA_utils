@@ -121,12 +121,17 @@ class PlotOutput():
         if (self.outtype == 'stage4' or self.outtype == 'upp'):
             sample = list(self.ds.keys())[0]
             itime = dt.datetime.strptime(self.ds[sample].attrs['initial_time'], '%m/%d/%Y (%H:%M)')
+            # forecast time may or may not be in a list
+            try:
+                ftime = int(self.ds[sample].attrs['forecast_time'][0])
+            except IndexError:
+                ftime = int(self.ds[sample].attrs['forecast_time'])
             if self.ds[sample].attrs['forecast_time_units'] == 'hours':
-                delta = dt.timedelta(hours=int(self.ds[sample].attrs['forecast_time'][0]))
+                delta = dt.timedelta(hours=ftime)
             elif self.ds[sample].attrs['forecast_time_units'] == 'minutes':
-                delta = dt.timedelta(minutes=int(self.ds[sample].attrs['forecast_time'][0]))
+                delta = dt.timedelta(minutes=ftime)
             elif self.ds[sample].attrs['forecast_time_units'] == 'days':
-                delta = dt.timedelta(days=int(self.ds[sample].attrs['forecast_time'][0]))
+                delta = dt.timedelta(days=ftime)
             self.time = (itime + delta).strftime('%Y%m%d %H:%M:%S UTC')
 
             
@@ -672,8 +677,15 @@ class PlotOutput():
 
 
     def skewt(self, lon, lat, hodo=True, barbs=True, thin=5, hodo_range=50., skew=None, 
-              hodo_ax=None, Tplot_kw={'linewidth':2.5, 'color':'r'}, 
-              TDplot_kw={'linewidth':2.5, 'color':'b'}, Hplot_kw={'linewidth':2}):
+              hodo_ax=None, bgd_lw=0.75, Tplot_kw={'linewidth':2.5, 'color':'r'}, 
+              TDplot_kw={'linewidth':2.5, 'color':'b'}, Hplot_kw={'linewidth':2},
+              fields={'PRES':'PRES_P0_L105_GLC0',
+                      'TMP':'TMP_P0_L105_GLC0',
+                      'SPFH':'SPFH_P0_L105_GLC0',
+                      'UGRD':'UGRD_P0_L105_GLC0',
+                      'VGRD':'VGRD_P0_L105_GLC0',
+                      'HGT':'HGT_P0_L105_GLC0',
+                      'SFC_HGT':'HGT_P0_L1_GLC0'}):
         """
         Plot a Skew-T, log-p diagram for the gridpoint closest to (lat, lon)
 
@@ -694,12 +706,23 @@ class PlotOutput():
             SkewT object to plot sounding on. Set to None to create a new SkewT object
         hodo_ax : metpy.plots.Hodograph object, optional
             Hodograph object to plot hodograph on. Set to None to create a new subset axes
+        bgd_lw : float, optional
+            Linewidth for background lines (dry adiabats, moist adiabats, mixing lines)
         Tplot_kw : dict, optional
             Other keyword arguments passed to pyplot.plot when plotting temperature (key must be a string)
         TDplot_kw : dict, optional
             Other keyword arguments passed to pyplot.plot when plotting dewpoint (key must be a string)
         Hplot_kw : dict, optional
             Other keyword arguments passed to pyplot.plot when plotting hodograph (key must be a string)
+        fields : dictionary, optional
+            Names of the fields used for plotting. Includes...
+                PRES = Pressure field name (Pa)
+                TMP = Temperature field name (K)
+                SPFH = Specific humidity field name (unitless)
+                UGRD = Zonal wind field name (m/s)
+                VGRD = Meridional wind field name (m/s)
+                HGT = Height field name (m MSL)
+                SFC_HGT = Model surface height field name (m MSL)
 
         """
 
@@ -718,16 +741,16 @@ class PlotOutput():
                 z = wrf.getvar(self.fptr, 'height_agl', units='m')[:, i, j]
             time = np.datetime_as_string(p.Time.values)[:-10] + ' UTC:\n'
         elif self.outtype == 'upp':
-            p = self.ds['PRES_P0_L105_GLC0'][:, i, j] * 1e-2
-            T = self.ds['TMP_P0_L105_GLC0'][:, i, j] - 273.15
+            p = self.ds[fields['PRES']][:, i, j] * 1e-2
+            T = self.ds[fields['TMP']][:, i, j] - 273.15
             Td = mc.dewpoint_from_specific_humidity(p.values*units.hPa,
                                                     T.values*units.degC,
-                                                    self.ds['SPFH_P0_L105_GLC0'][:, i, j].values).to('degC').magnitude
+                                                    self.ds[fields['SPFH']][:, i, j].values).to('degC').magnitude
             if (barbs or hodo):
-                u = self.ds['UGRD_P0_L105_GLC0'][:, i, j]
-                v = self.ds['VGRD_P0_L105_GLC0'][:, i, j]
+                u = self.ds[fields['UGRD']][:, i, j]
+                v = self.ds[fields['VGRD']][:, i, j]
             if hodo:
-                z = self.ds['HGT_P0_L105_GLC0'][:, i, j] - self.ds['HGT_P0_L1_GLC0'][i, j]
+                z = self.ds[fields['HGT']][:, i, j] - self.ds[fields['SFC_HGT']][i, j]
             time = self.time
 
         # Create figure
@@ -741,9 +764,9 @@ class PlotOutput():
         self.skew.plot(p, T, **Tplot_kw)        
         self.skew.plot(p, Td, **TDplot_kw)        
 
-        self.skew.plot_dry_adiabats(linewidth=0.75)
-        self.skew.plot_moist_adiabats(linewidth=0.75)
-        self.skew.plot_mixing_lines(linewidth=0.75)
+        self.skew.plot_dry_adiabats(linewidth=bgd_lw)
+        self.skew.plot_moist_adiabats(linewidth=bgd_lw)
+        self.skew.plot_mixing_lines(linewidth=bgd_lw)
 
         if hodo:
 
