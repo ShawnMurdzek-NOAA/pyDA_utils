@@ -733,10 +733,10 @@ class ensemble():
         
         # Make plots
         for i, mem in enumerate(names):
-            if (i > 0) and ('skew' not in skew_kw.keys()):
-                skew_kw['skew'] = plot_obj.skew
             plot_obj = pmd.PlotOutput([self.subset_ds[mem]], 'upp', fig, nrows, ncols, nplot)
             plot_obj.skewt(lon, lat, **skew_kw)
+            if (len(names) > 1) and ('skew' not in skew_kw.keys()):
+                skew_kw['skew'] = plot_obj.skew
 
         return plot_obj
 

@@ -100,6 +100,43 @@ def compute_ceil_agl(ds, no_ceil=2e4, fields={'CEIL_LEGACY':'HGT_P0_L215_GLC0',
     return ds
 
 
+def compute_wspd_wdir(ds, u_field='UGRD_P0_L100_GLC0', v_field='VGRD_P0_L100_GLC0', 
+                      wspd_field='WSPD', wdir_field='WDIR'):
+    """
+    Compute wind speed and direction from u and v wind components
+
+    Parameters
+    ----------
+    ds : xr.Dataset
+        Input UPP Dataset
+    u_field : string, optional
+        name of u-component field
+    v_field : string, optional
+        name of v-component field
+    wspd_field : string, optional
+        name of output wind speed field
+    wdir_field : string, optional
+        name of output wind direction field
+
+    Returns
+    -------
+    ds : xr.Dataset
+        UPP Dataset with wind speed and direction
+
+    """
+
+    ds[wspd_field] = np.sqrt(ds[u_field]**2 + ds[v_field]**2)
+    ds[wspd_field].attrs = ds[u_field].attrs
+    ds[wspd_field].attrs['long_name'] = 'wind speed'
+
+    ds[wdir_field] = 90. - np.rad2deg(np.arctan2(-ds[v_field], -ds[u_field]))
+    ds[wdir_field].attrs = ds[u_field].attrs
+    ds[wdir_field].attrs['long_name'] = 'wind direction'
+    ds[wdir_field].attrs['units'] = 'deg'
+
+    return ds
+
+
 """
 End upp_postprocess.py
 """
