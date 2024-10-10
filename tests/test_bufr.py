@@ -76,12 +76,12 @@ class TestBUFR():
         tmp_bufr = copy.deepcopy(sample_pb)
 
         # Match two aircraft fields
-        tmp_bufr.match_types(233, 133, match_fields=['SID', 'XOB', 'YOB'])
+        tmp_bufr.match_types(233, 133, match_fields=['SID', 'XOB', 'YOB'], copy_fields=['TOB'])
         assert np.all(tmp_bufr.df.loc[tmp_bufr.df['TYP'] == 187, 'match'] == 0)
         for m in range(1, np.amax(tmp_bufr.df['match'])+1):
             print(m)
             cond = tmp_bufr.df['match'] == m
-            for f in ['SID', 'XOB', 'YOB', 'DHR']:
+            for f in ['SID', 'XOB', 'YOB', 'DHR', 'TOB']:
                 assert len(np.unique(tmp_bufr.df.loc[cond, f])) == 1
 
         # Match GPS IPW to an undefined field

@@ -110,7 +110,8 @@ class bufrCSV():
         self.df = self.df.loc[keep_idx]
 
 
-    def match_types(self, typ1, typ2, match_fields=['SID', 'XOB', 'YOB'], nearest_field='DHR'):
+    def match_types(self, typ1, typ2, match_fields=['SID', 'XOB', 'YOB'], nearest_field='DHR', 
+                    copy_fields=[]):
         """
         Match all typ1 observations to a typ2 observation. Ideally used to match thermodynamic to
         kinematic obs
@@ -127,6 +128,8 @@ class bufrCSV():
         nearest_fields : string, optional
             In the event that multiple typ2 obs match after filtering based on the match_fields, 
             the ob with the value of nearest_field closed to typ1 is matched
+        copy_fields : list of strings, optional
+            Fields to copy from typ2 to typ1
 
         Returns
         -------
@@ -136,7 +139,7 @@ class bufrCSV():
         """
 
         # Extract required fields from DataFrame
-        all_fields = match_fields + [nearest_field, 'TYP']
+        all_fields = match_fields + [nearest_field, 'TYP'] + copy_fields
         fields = {}
         for f in all_fields:
             fields[f] = self.df[f].values
@@ -157,16 +160,21 @@ class bufrCSV():
             if np.sum(cond) == 0:
                 match[i] = -1
             else:
-                match[i] = m
                 if np.sum(cond) == 1:
-                    match[np.where(cond)[0][0]] = m
+                    t2_idx = np.where(cond)[0][0]
                 else:
                     red_idx = np.argmin(np.abs(fields[nearest_field][i] - fields[nearest_field][cond]))
-                    match[fields['idx'][cond][red_idx]] = m
+                    t2_idx = fields['idx'][cond][red_idx]
+                for c in copy_fields:
+                    fields[c][i] = fields[c][t2_idx]
+                match[i] = m
+                match[t2_idx] = m
                 m = m + 1
 
         # Add match field to DataFrame
         self.df['match'] = match
+        for c in copy_fields:
+            self.df[c] = fields[c]
 
 
     def sample(self, fname, n=2):
