@@ -68,6 +68,27 @@ class TestBUFR():
         assert not np.all(np.array(n_entries) == 1)
 
 
+    def test_match_types(self, sample_pb):
+        """
+        Test method to match thermodynamic and kinematic obs together
+        """
+
+        tmp_bufr = copy.deepcopy(sample_pb)
+
+        # Match two aircraft fields
+        tmp_bufr.match_types(233, 133, match_fields=['SID', 'XOB', 'YOB'])
+        assert np.all(tmp_bufr.df.loc[tmp_bufr.df['TYP'] == 187, 'match'] == 0)
+        for m in range(1, np.amax(tmp_bufr.df['match'])+1):
+            print(m)
+            cond = tmp_bufr.df['match'] == m
+            for f in ['SID', 'XOB', 'YOB', 'DHR']:
+                assert len(np.unique(tmp_bufr.df.loc[cond, f])) == 1
+
+        # Match GPS IPW to an undefined field
+        tmp_bufr.match_types(153, 200, match_fields=['SID', 'XOB', 'YOB'])
+        assert np.all(tmp_bufr.df.loc[tmp_bufr.df['TYP'] == 153, 'match'] == -1)
+
+
     def test_compute_ceil(self, sample_pb):
         """
         Test ceiling computations

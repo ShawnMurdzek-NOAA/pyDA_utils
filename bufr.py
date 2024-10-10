@@ -110,6 +110,65 @@ class bufrCSV():
         self.df = self.df.loc[keep_idx]
 
 
+    def match_types(self, typ1, typ2, match_fields=['SID', 'XOB', 'YOB'], nearest_field='DHR'):
+        """
+        Match all typ1 observations to a typ2 observation. Ideally used to match thermodynamic to
+        kinematic obs
+
+        Parameters
+        ----------
+        typ1 : string
+            Observation type to loop over
+        typ2 : string
+            Observation type that typ1 is matched to (NOTE: not every typ2 ob is guaranteed to be 
+            matched to a typ1 ob)
+        match_fields : list of strings, optional
+            Fields that must match exactly between typ1 and typ2
+        nearest_fields : string, optional
+            In the event that multiple typ2 obs match after filtering based on the match_fields, 
+            the ob with the value of nearest_field closed to typ1 is matched
+
+        Returns
+        -------
+        None. self.df has a new field: match. The same value of "match" indicates that two 
+        observations have been matched together
+            
+        """
+
+        # Extract required fields from DataFrame
+        all_fields = match_fields + [nearest_field, 'TYP']
+        fields = {}
+        for f in all_fields:
+            fields[f] = self.df[f].values
+        nobs = len(fields[all_fields[0]])
+        fields['idx'] = np.arange(nobs, dtype=int)
+
+        # Determine indices for the first ob type
+        ob_idx_1 = np.where(fields['TYP'] == typ1)[0]
+
+        # Create a match field (the same value indicates that observations are matched)
+        # Note that a "-1" indicates that there is no match
+        match = np.zeros(nobs, dtype=int)
+        m = 1
+        for i in ob_idx_1:
+            cond = (fields['TYP'] == typ2)
+            for f in match_fields:
+                cond = cond * (fields[f] == fields[f][i])
+            if np.sum(cond) == 0:
+                match[i] = -1
+            else:
+                match[i] = m
+                if np.sum(cond) == 1:
+                    match[np.where(cond)[0][0]] = m
+                else:
+                    red_idx = np.argmin(np.abs(fields[nearest_field][i] - fields[nearest_field][cond]))
+                    match[fields['idx'][cond][red_idx]] = m
+                m = m + 1
+
+        # Add match field to DataFrame
+        self.df['match'] = match
+
+
     def sample(self, fname, n=2):
         """
         Create a sample prepbufr CSV using only n lines from each unique prepbufr report type
