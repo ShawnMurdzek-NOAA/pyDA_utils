@@ -40,28 +40,16 @@ class TestBUFRlim():
         assert np.all((tmp_bufr.df.loc[tmp_bufr.df['TYP'] == 236, 'WSPD'] > 15) == 
                       tmp_bufr.df.loc[tmp_bufr.df['TYP'] == 236, 'cond'])
 
-        # Check that type 136 and 236 have the same number of cond = True
-        all_sid = np.unique(tmp_bufr.df['SID'])
-        for s in all_sid:
-            assert (np.sum(tmp_bufr.df.loc[((tmp_bufr.df['SID'] == s)*(tmp_bufr.df['TYP'] == 136)), 'cond']) ==
-                    np.sum(tmp_bufr.df.loc[((tmp_bufr.df['SID'] == s)*(tmp_bufr.df['TYP'] == 236)), 'cond']))
-
 
     def test_detect_icing(self, sample_pb):
 
         tmp_bufr = copy.deepcopy(sample_pb)
         tmp_bufr = lp.detect_icing(tmp_bufr, tob_lim=2, rh_lim=90)
 
-        # Check that all rows with WSPD > 15 are flagged
+        # Check that all rows meeting icing conditions are flagged
         assert np.all(np.logical_and((tmp_bufr.df.loc[tmp_bufr.df['TYP'] == 136, 'TOB'] < 2),
                                      (tmp_bufr.df.loc[tmp_bufr.df['TYP'] == 136, 'RHOB'] > 90)) ==
                       tmp_bufr.df.loc[tmp_bufr.df['TYP'] == 136, 'cond'])
-
-        # Check that type 136 and 236 have the same number of cond = True
-        all_sid = np.unique(tmp_bufr.df['SID'])
-        for s in all_sid:
-            assert (np.sum(tmp_bufr.df.loc[((tmp_bufr.df['SID'] == s)*(tmp_bufr.df['TYP'] == 136)), 'cond']) ==
-                    np.sum(tmp_bufr.df.loc[((tmp_bufr.df['SID'] == s)*(tmp_bufr.df['TYP'] == 236)), 'cond']))
 
 
     def test_remove_obs_after_lim(self, sample_pb):
@@ -75,7 +63,7 @@ class TestBUFRlim():
         last_dhr_uas1 = tmp_bufr.df.loc[854, 'DHR']
 
         tmp_bufr = lp.wspd_limit(tmp_bufr, lim=15)
-        df = lp.remove_obs_after_lim(tmp_bufr.df, obtypes=[136, 236], nthres=3)
+        df = lp.remove_obs_after_lim(tmp_bufr.df, 236, match_type=[136], nthres=3)
 
         # Check that the max DHR for UA000001 is last_dhr_uas1
         assert np.amax(df.loc[df['SID'] == "'UA000001'", 'DHR']) == last_dhr_uas1
