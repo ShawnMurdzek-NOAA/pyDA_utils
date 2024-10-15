@@ -120,7 +120,7 @@ def wspd_limit(bufr_obj, lim=15, wind_type=236, verbose=0):
     return bufr_obj
 
 
-def detect_icing(bufr_obj, tob_lim=2, rh_lim=90, thermo_type=136):
+def detect_icing_RH(bufr_obj, tob_lim=2, rh_lim=90, thermo_type=136):
     """
     Detect icing conditions using a T and RH threshold
 
@@ -128,9 +128,9 @@ def detect_icing(bufr_obj, tob_lim=2, rh_lim=90, thermo_type=136):
     ----------
     bufr_obj : bufr.bufrCSV object
         BUFR CSV object
-    tob_lim : integer, optional
+    tob_lim : float, optional
         Temperature limit (deg C)
-    rh_lim : integer, optional
+    rh_lim : float, optional
         Relative humidity limit (%)
     thermo_type : integer, optional
         Thermodynamic observation type
@@ -147,6 +147,37 @@ def detect_icing(bufr_obj, tob_lim=2, rh_lim=90, thermo_type=136):
 
     # Flag rows that meet the icing criteria
     bufr_obj.df['cond'] = ((bufr_obj.df['TOB'] < tob_lim) * (bufr_obj.df['RHOB'] > rh_lim) *
+                           (bufr_obj.df['TYP'] == thermo_type))
+
+    return bufr_obj
+
+
+def detect_icing_LIQMR(bufr_obj, tob_lim=2, ql_lim=0.1e-3, ql_field='liqmix', thermo_type=136):
+    """
+    Detect icing conditions using a T and liquid mixing ratio threshold
+
+    Parameters
+    ----------
+    bufr_obj : bufr.bufrCSV object
+        BUFR CSV object
+    tob_lim : float, optional
+        Temperature limit (deg C)
+    ql_lim : float, optional
+        Liquid mixing ratio limit (kg/kg)
+    ql_field : string, optional
+        Liquid mixing ratio field name
+    thermo_type : integer, optional
+        Thermodynamic observation type
+
+    Returns
+    -------
+    bufr_obj : bufr.bufrCSV object
+        BUFR CSV object with an extra column indicating whether the icing conditions were met
+
+    """
+
+    # Flag rows that meet the icing criteria
+    bufr_obj.df['cond'] = ((bufr_obj.df['TOB'] < tob_lim) * (bufr_obj.df[ql_field] > ql_lim) *
                            (bufr_obj.df['TYP'] == thermo_type))
 
     return bufr_obj

@@ -41,14 +41,30 @@ class TestBUFRlim():
                       tmp_bufr.df.loc[tmp_bufr.df['TYP'] == 236, 'cond'])
 
 
-    def test_detect_icing(self, sample_pb):
+    def test_detect_icing_RH(self, sample_pb):
 
         tmp_bufr = copy.deepcopy(sample_pb)
-        tmp_bufr = lp.detect_icing(tmp_bufr, tob_lim=2, rh_lim=90)
+        tmp_bufr = lp.detect_icing_RH(tmp_bufr, tob_lim=2, rh_lim=90)
 
         # Check that all rows meeting icing conditions are flagged
         assert np.all(np.logical_and((tmp_bufr.df.loc[tmp_bufr.df['TYP'] == 136, 'TOB'] < 2),
                                      (tmp_bufr.df.loc[tmp_bufr.df['TYP'] == 136, 'RHOB'] > 90)) ==
+                      tmp_bufr.df.loc[tmp_bufr.df['TYP'] == 136, 'cond'])
+
+
+    def test_detect_icing_LIQMR(self, sample_pb):
+
+        # Add fake ql data
+        tmp_bufr = copy.deepcopy(sample_pb)
+        tmp_bufr.df['liqmix'] = np.ones(len(tmp_bufr.df)) * 1e-3
+
+        # In this scenario, no icing should be detected
+        tmp_bufr = lp.detect_icing_LIQMR(tmp_bufr, tob_lim=2, ql_lim=2e-3)
+        assert np.all(~tmp_bufr.df.loc[tmp_bufr.df['TYP'] == 136, 'cond'])
+
+        # In this scenario, some icing should be detected
+        tmp_bufr = lp.detect_icing_LIQMR(tmp_bufr, tob_lim=2, ql_lim=0.1e-3)
+        assert np.all((tmp_bufr.df.loc[tmp_bufr.df['TYP'] == 136, 'TOB'] < 2) ==
                       tmp_bufr.df.loc[tmp_bufr.df['TYP'] == 136, 'cond'])
 
 
