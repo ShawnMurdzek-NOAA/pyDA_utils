@@ -85,6 +85,24 @@ class bufrCSV():
                 self.df = self.df.loc[~np.isclose(self.df['TYP'].values, typ)]
     
 
+    def select_SIDs(self, sids):
+        """
+        Subset the prepbufr CSV so that it only contains station IDs included in the sids list
+
+        Parameters
+        ----------
+        sids : list
+            Station IDs to retain
+        
+        """
+
+        cond = np.zeros(len(self.df))
+        for s in sids:
+            cond = cond + (self.df['SID'] == s)
+        
+        self.df = self.df.loc[cond > 0, :]
+    
+
     def select_dhr(self, DHR):
         """
         Subset the prepbufr CSV so that it only contains observations that are closest for a 
