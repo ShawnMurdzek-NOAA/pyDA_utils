@@ -24,6 +24,7 @@ from metpy.units import units
 import os
 import inspect
 import warnings
+import datetime as dt
 
 import pyDA_utils.gsi_fcts as gsi
 import pyDA_utils.meteo_util as mu
@@ -561,7 +562,7 @@ def create_uncorr_obs_err(err_num, stdev):
 
 
 def create_corr_obs_err(ob_df, stdev, auto_dim, partition_dim=None, auto_reg_parm=0.5, 
-                        min_d=0.01667):
+                        min_d=0.01667, verbose=0):
     """
     Create correlated observation errors using an AR1 process
 
@@ -582,6 +583,8 @@ def create_corr_obs_err(ob_df, stdev, auto_dim, partition_dim=None, auto_reg_par
     min_d : float, optional
         Minimum distance allowed between successive points when computing the autocorrelation (see
         Notes). This parameter is necessary b/c the ob spacing in 'POB' or 'DHR' is not constant.
+    verbose : integer, optional
+        Verbosity level. Higher numbers correspond to more output
 
     Returns
     -------
@@ -606,6 +609,13 @@ def create_corr_obs_err(ob_df, stdev, auto_dim, partition_dim=None, auto_reg_par
     error = np.zeros(len(ob_df))
     ob_df.reset_index(inplace=True, drop=True)
 
+    # Extract necessary fields from DataFrame
+    all_idx = ob_df.index.values
+    all_sid = ob_df['SID'].values
+    all_auto_dim = ob_df[auto_dim].values
+    if partition_dim != None:
+        all_partition_dim = ob_df[partition_dim].values
+
     # For POB, sort based on descending values
     if auto_dim == 'POB':
         ascending = False
@@ -613,36 +623,39 @@ def create_corr_obs_err(ob_df, stdev, auto_dim, partition_dim=None, auto_reg_par
         ascending = True
 
     # Determine if the stdev is a scalar or a list/array
-    if isinstance(stdev, (collections.abc.Sequence, np.ndarray)):
-        is_stdev_array = True
-    else:
-        is_stdev_array = False
+    is_stdev_array = isinstance(stdev, (collections.abc.Sequence, np.ndarray))
 
     # Loop over each station ID, then over each sorted index
     for sid in ob_df['SID'].unique():
-       single_station = ob_df.loc[ob_df['SID'] == sid].copy()
-       if partition_dim != None:
-           partitioned_obs = []
-           partition_vals = single_station[partition_dim].unique()
-           for v in partition_vals:
-               partitioned_obs.append(single_station.loc[single_station[partition_dim] == v])  
-       else:
-           partitioned_obs = [single_station]
-       for obs in partitioned_obs:
-           idx = obs.sort_values(auto_dim, ascending=ascending).index
-           dist = np.abs(obs.loc[idx[1:], auto_dim].values - 
-                         obs.loc[idx[:-1], auto_dim].values)
-           dist[dist <= min_d] = min_d
-           dist = dist / min_d
-           if is_stdev_array:
-               error[idx[0]] = np.random.normal(scale=stdev[idx[0]])
-               for j1, j2, d in zip(idx[:-1], idx[1:], dist):
-                  error[j2] = np.random.normal(scale=stdev[j2]) + (auto_reg_parm * error[j1] / d)
-           else:
-               error[idx[0]] = np.random.normal(scale=stdev)
-               for j1, j2, d in zip(idx[:-1], idx[1:], dist):
-                   error[j2] = np.random.normal(scale=stdev) + (auto_reg_parm * error[j1] / d)
-   
+        if verbose > 0: print(f'{sid} ({dt.datetime.now()})') 
+        if verbose > 1: print(f'  determining tmp_idx1 ({dt.datetime.now()})')
+        if partition_dim != None:
+            partition_dim_vals = np.unique(all_partition_dim[all_sid == sid])
+            tmp_idx1 = [np.where(np.logical_and(all_sid == sid, all_partition_dim == val))[0] for val in partition_dim_vals]
+        else:
+            tmp_idx1 = np.where(all_sid == sid)
+
+        for i1 in tmp_idx1:
+            if verbose > 1: print(f'  determining tmp_idx2 ({dt.datetime.now()})')
+            sub_auto_dim = all_auto_dim[i1]
+            tmp_idx2 = np.argsort(sub_auto_dim)
+            if not ascending:
+                tmp_idx2 = tmp_idx2[::-1]
+            if verbose > 1: print(f'  computing d ({dt.datetime.now()})')
+            dist = np.abs(sub_auto_dim[tmp_idx2[1:]] - sub_auto_dim[tmp_idx2[:-1]])
+            dist[dist <= min_d] = min_d
+            dist = dist / min_d
+            if verbose > 1: print(f'  computing error ({dt.datetime.now()})')
+            idx = i1[tmp_idx2]
+            if is_stdev_array:
+                error[idx[0]] = np.random.normal(scale=stdev[idx[0]])
+                for j1, j2, d in zip(idx[:-1], idx[1:], dist):
+                    error[j2] = np.random.normal(scale=stdev[j2]) + (auto_reg_parm * error[j1] / d)
+            else:
+                error[idx[0]] = np.random.normal(scale=stdev)
+                for j1, j2, d in zip(idx[:-1], idx[1:], dist):
+                    error[j2] = np.random.normal(scale=stdev) + (auto_reg_parm * error[j1] / d)
+
     return error
 
 
@@ -686,13 +699,16 @@ def add_obs_err(df, std_errtable, mean_errtable=None, ob_typ='all', correlated=N
     """
     
     # Make copy of DataFrame
+    if verbose: print(f'Copying DataFrame ({dt.datetime.now()})...')
     out_df = df.copy()
 
     # Determine list of all observation types
+    if verbose: print(f'Determining obs types ({dt.datetime.now()})...')
     if ob_typ == 'all':
         ob_typ = np.int32(out_df['TYP'].unique())
 
     # Read in error table file(s) 
+    if verbose: print(f'Reading error table ({dt.datetime.now()})...')
     etable = gsi.read_errtable(std_errtable)
     eprs = etable[100]['prs'].values
     if mean_errtable != None:
@@ -702,10 +718,12 @@ def add_obs_err(df, std_errtable, mean_errtable=None, ob_typ='all', correlated=N
             mean_errtable[key].fillna(0, inplace=True)
 
     # Convert specific humidities to relative humidities in BUFR CSV
+    if verbose: print(f'Computing RH ({dt.datetime.now()})...')
     out_df = compute_RH(out_df)
     out_df['RHOB'] = 0.1 * out_df['RHOB']
 
     # Convert surface pressures from Pa to hPa in BUFR CSV
+    if verbose: print(f'Converting PRSS to hPa ({dt.datetime.now()})...')
     out_df['PRSS'] = out_df['PRSS'] * 1e-2
 
     # Loop over each observation type
@@ -716,12 +734,11 @@ def add_obs_err(df, std_errtable, mean_errtable=None, ob_typ='all', correlated=N
         for ob, err in zip(['TOB', 'RHOB', 'UOB', 'VOB', 'PRSS', 'PWO', 'PMO'],
                            ['Terr', 'RHerr', 'UVerr', 'UVerr', 'PSerr', 'PWerr', 'PSerr']):
         
-            if verbose:    
-                print(ob)
+            if verbose: print(f'  {ob} ({dt.datetime.now()})')
             # Check to see if errors are defined
-            if np.all(np.isnan(etable[t][err].values)):
-                if verbose:
-                    print('no errors for ob_typ = %d, ob = %s' % (t, ob))
+            if (np.all(np.isnan(etable[t][err].values)) or 
+                 np.all(np.isclose(etable[t][err].values, 0))):
+                if verbose:  print('  no errors for ob_typ = %d, ob = %s' % (t, ob))
                 continue
 
             # Determine indices where errors are not NaN
@@ -757,6 +774,7 @@ def add_obs_err(df, std_errtable, mean_errtable=None, ob_typ='all', correlated=N
                 mean = 0
 
             # Compute errors
+            if verbose: print(f'    computing errors ({dt.datetime.now()})')
             if correlated == None:
                 error = mean + create_uncorr_obs_err(np.sum(oind), stdev)
             else:
