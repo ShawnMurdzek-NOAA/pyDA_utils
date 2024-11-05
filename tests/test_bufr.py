@@ -11,9 +11,11 @@ shawn.s.murdzek@noaa.gov
 # Import Modules
 #---------------------------------------------------------------------------------------------------
 
+import pandas as pd
 import numpy as np
 import pytest
 import copy
+import random
 
 import pyDA_utils.bufr as bufr
 
@@ -29,6 +31,30 @@ class TestBUFR():
         fname = './data/202202011200.rap.prepbufr.for_bufr_test.csv'
         return bufr.bufrCSV(fname)
    
+    
+    @pytest.fixture(scope='class')
+    def sample_add_err_pb(self):
+        """
+        Sample data for testing code to add observation errors
+        """
+
+        # Generate data
+        nobs = 500
+        nsid = 2
+        DHR = np.array(nsid*list(range(nobs))) / 3600.
+        SID = []
+        for i in range(nsid):
+            SID = SID + nobs*[f'SID{i}']
+        TOB = 50*DHR + 270
+        POB = 1000 - 500*DHR
+
+        # Shuffle data
+        idx = list(range(len(DHR)))
+        random.shuffle(idx)
+        test_dict = {'SID':np.array(SID)[idx], 'DHR':DHR[idx], 'TOB':TOB[idx], 'POB':POB[idx]}
+
+        return pd.DataFrame(test_dict)
+
 
     def test_select_obtypes(self, sample_pb):
         """
@@ -78,6 +104,8 @@ class TestBUFR():
         # Match two aircraft fields
         tmp_bufr.match_types(233, 133, match_fields=['SID', 'XOB', 'YOB'], copy_fields=['TOB'])
         assert np.all(tmp_bufr.df.loc[tmp_bufr.df['TYP'] == 187, 'match'] == 0)
+        print()
+        print("In test_match_types")
         for m in range(1, np.amax(tmp_bufr.df['match'])+1):
             print(m)
             cond = tmp_bufr.df['match'] == m
@@ -115,6 +143,88 @@ class TestBUFR():
 
         # Check that ceilings match
         assert np.all(np.isclose(ceil_compute, ceil_raw))
+
+
+    def test_create_uncorr_obs_err(self):
+        """
+        Test method to create uncorrelated observation errors
+        """
+
+        # Constant stdev
+        err = bufr.create_uncorr_obs_err(100000, 0.5)
+        assert np.isclose(np.std(err), 0.5, atol=0.02)
+        assert np.isclose(np.mean(err), 0, atol=0.02)
+
+        # Variable stdev
+        stdev = np.array(1000*[0.5] + 1000*[5])
+        err = bufr.create_uncorr_obs_err(len(stdev), stdev)
+        assert np.isclose(np.std(err[:1000]), 0.5, atol=0.05)
+        assert np.isclose(np.std(err[1000:]), 5, atol=0.5)
+        assert np.isclose(np.mean(err), 0, atol=0.3)
+
+
+    def test_create_corr_obs_err(self, sample_add_err_pb):
+        """
+        Test method to create uncorrelated observation errors
+        """
+
+        # Constant stdev
+        err = bufr.create_corr_obs_err(sample_add_err_pb, 1, 'DHR', auto_reg_parm=0.5, min_d=1)
+        err_ID0 = err[sample_add_err_pb['SID'].values == 'SID0']
+        err_ID0_sorted = err_ID0[np.argsort(sample_add_err_pb.loc[sample_add_err_pb['SID'] == 'SID0', 'DHR'].values)]
+        autocorr = np.corrcoef(err_ID0_sorted[1:], err_ID0_sorted[:-1])[0, 1]
+        print()
+        print("In test_create_corr_obs_err")
+        print(f"constant stdev autocorr = {autocorr} (should be close to 0.5)")
+        assert np.isclose(autocorr, 0.5, atol=0.1)
+
+        # Constant stdev special case: autocorrelation should be close to 0 b/c min_d is small
+        err = bufr.create_corr_obs_err(sample_add_err_pb, 1, 'DHR', auto_reg_parm=0.5, min_d=1e-10)
+        err_ID0 = err[sample_add_err_pb['SID'].values == 'SID0']
+        err_ID0_sorted = err_ID0[np.argsort(sample_add_err_pb.loc[sample_add_err_pb['SID'] == 'SID0', 'DHR'].values)]
+        autocorr = np.corrcoef(err_ID0_sorted[1:], err_ID0_sorted[:-1])[0, 1]
+        print(f"constant stdev special case autocorr = {autocorr} (should be close to 0)")
+        assert np.isclose(autocorr, 0, atol=0.1)
+        assert np.isclose(np.std(err_ID0_sorted), 1, atol=0.1)
+
+        # Constant stdev, but with partition_dim feature using POB
+        # Change POB to be constant for the first half of the dataset so that the autocorrelation is nonzero
+        # B/c POB is different for every ob, the autocorrelation should be close to 0
+        tmp_df = copy.deepcopy(sample_add_err_pb)
+        tmp_df.loc[tmp_df['POB'] > 965, 'POB'] = 1000
+        err = bufr.create_corr_obs_err(tmp_df, 1, 'DHR', partition_dim='POB', auto_reg_parm=0.5, min_d=1)
+        err_ID0_1 = err[np.logical_and(tmp_df['SID'].values == 'SID0', tmp_df['POB'] > 965)]
+        err_ID0_2 = err[np.logical_and(tmp_df['SID'].values == 'SID0', tmp_df['POB'] <= 965)]
+        err_ID0_1_sorted = err_ID0_1[np.argsort(tmp_df.loc[np.logical_and(tmp_df['SID'].values == 'SID0', tmp_df['POB'] > 965), 'DHR'].values)]
+        err_ID0_2_sorted = err_ID0_2[np.argsort(tmp_df.loc[np.logical_and(tmp_df['SID'].values == 'SID0', tmp_df['POB'] <= 965), 'DHR'].values)]
+        autocorr1 = np.corrcoef(err_ID0_1_sorted[1:], err_ID0_1_sorted[:-1])[0, 1]
+        autocorr2 = np.corrcoef(err_ID0_2_sorted[1:], err_ID0_2_sorted[:-1])[0, 1]
+        print(f"constant stdev with POB partition_dim autocorr (first half) = {autocorr1} (should be close to 0.5)")
+        assert np.isclose(autocorr1, 0.5, atol=0.15)
+        print(f"constant stdev with POB partition_dim autocorr (second half) = {autocorr2} (should be close to 0)")
+        assert np.isclose(autocorr2, 0, atol=0.15)
+
+        # Variable stdev
+        df_ID0 = sample_add_err_pb.loc[sample_add_err_pb['SID'] == 'SID0']
+        stdev = np.array(int(len(df_ID0)/2)*[0.5] + int(len(df_ID0)/2)*[5])
+        err = bufr.create_corr_obs_err(df_ID0, stdev, 'DHR', auto_reg_parm=0.5, min_d=1)
+        err_sorted = err[np.argsort(df_ID0['DHR'].values)]
+        autocorr = np.corrcoef(err_sorted[1:], err_sorted[:-1])[0, 1]
+        print(f"variable stdev autocorr = {autocorr} (should be close to 0.5)")
+        assert np.isclose(autocorr, 0.5, atol=0.1)
+
+        # Variable stdev special case: autocorrelation should be close to 0 b/c min_d is small
+        df_ID0 = sample_add_err_pb.loc[sample_add_err_pb['SID'] == 'SID0']
+        nhalf = int(len(df_ID0)/2)
+        stdev = np.array(nhalf*[0.5] + nhalf*[5])
+        err = bufr.create_corr_obs_err(df_ID0, stdev, 'DHR', auto_reg_parm=0.5, min_d=1e-10)
+        err_sorted = err[np.argsort(df_ID0['DHR'].values)]
+        autocorr = np.corrcoef(err_sorted[1:], err_sorted[:-1])[0, 1]
+        print(f"variable stdev special case autocorr = {autocorr} (should be close to 0)")
+        assert np.isclose(autocorr, 0, atol=0.1)
+        assert np.isclose(np.std(err[:nhalf]), 0.5, atol=0.05)
+        assert np.isclose(np.std(err[nhalf:]), 5, atol=0.5)
+        assert np.isclose(np.mean(err), 0, atol=0.3)
 
 
 """
