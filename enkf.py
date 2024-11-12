@@ -32,9 +32,23 @@ class enkf_1ob():
     ob_var : float
         Observation error variance
     localize : 1D np.array or None, optional
-        Array used for localization (set to None to turn off). PbHT is multipled by localize prior
-        to computing the Kalman gain. Dimensions: fcst vars
+        Array used for observation-space localization (set to None to turn off). PbHT is multipled 
+        by localize prior to computing the Kalman gain. Note that HPbHT is not localized. 
+        Dimensions: fcst vars
     
+    A Note About Localization
+    -------------------------
+    This class uses observation-space localization (e.g., Houtekamer and Mitchell 2001, MWR; 
+    Hamill et al. 2001, MWR, eqn 12-13; Lei et al. 2018, JAMES, eqn 2). The `localize` parameter 
+    only localizes PbHT and represents the correlations between the various model gridpoints and
+    the observation (thus, `localize` depends on the distance between the observation being 
+    assimilated and all model gridpoints). Unlike the references cited above, HPbHT is not 
+    localized. The localization of HPbHT represents the correlations between various observations
+    (and is, therefore, dependent on distances between observations). Because only a single 
+    observation is being assimilated, the correlation is 1 (i.e., only a diagonal element of the
+    localization of HPbHT is retained when assimilating a single ob, and the localization matrix
+    has all ones along the diagonal).
+
     References
     ----------
     Theory: Houtekamer and Mitchell (2001, MWR), Whitaker and Hamill et al. (2002, MWR)
@@ -81,6 +95,8 @@ class enkf_1ob():
         """
         Compute P_b H^T
 
+        Covariance of the estimate of the observation from the ensemble with the background
+
         Houtekamer and Mitchell (2001) eqn (2)
         """
 
@@ -100,6 +116,8 @@ class enkf_1ob():
     def compute_HPbHT(self):
         """
         Compute H P_b H^T
+
+        Variance of the estimate of the observation from the ensemble
 
         Houtekamer and Mitchell (2001) eqn (3)
         """
