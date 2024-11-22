@@ -68,7 +68,10 @@ class TestBUFRlim():
                       tmp_bufr.df.loc[tmp_bufr.df['TYP'] == 136, 'cond'])
 
 
-    def test_remove_obs_after_lim(self, sample_pb):
+    def test_remove_obs_after_lim_1df(self, sample_pb):
+        """
+        Test the ability to limit a single prepBUFR CSV using that same prepBUFR CSV
+        """
 
         tmp_bufr = copy.deepcopy(sample_pb)
 
@@ -79,7 +82,7 @@ class TestBUFRlim():
         last_dhr_uas1 = tmp_bufr.df.loc[854, 'DHR']
 
         tmp_bufr = lp.wspd_limit(tmp_bufr, lim=15)
-        df = lp.remove_obs_after_lim(tmp_bufr.df, 236, match_type=[136], nthres=3)
+        df = lp.remove_obs_after_lim(tmp_bufr.df, tmp_bufr.df, 236, match_type=[136], nthres=3)
 
         # Check that the max DHR for UA000001 is last_dhr_uas1
         assert np.amax(df.loc[df['SID'] == "'UA000001'", 'DHR']) == last_dhr_uas1
@@ -92,6 +95,32 @@ class TestBUFRlim():
 
         # Check that there are the same number of 236 and 136 obs
         assert len(df.loc[df['TYP'] == 136]) == len(df.loc[df['TYP'] == 236])
+    
+
+    def test_remove_obs_after_lim_2df(self, sample_pb):
+        """
+        Test using conditions from one prepBUFR CSV to limit another prepBUFR CSV
+        """
+
+        tmp_bufr = copy.deepcopy(sample_pb)
+        bufr_ref = copy.deepcopy(sample_pb)
+        start_len = len(tmp_bufr.df)
+
+        # Change the WSPD and cond fields for UA000001
+        idx = list(range(848, 853)) + list(range(870, 890))
+        bufr_ref.df.loc[idx, 'VOB'] = 5
+        bufr_ref.df.loc[idx, 'cond'] = False
+        last_dhr_uas1 = bufr_ref.df.loc[854, 'DHR']
+
+        bufr_ref = lp.wspd_limit(bufr_ref, lim=15)
+        df1 = lp.remove_obs_after_lim(tmp_bufr.df, bufr_ref.df, 236, match_type=[136], nthres=3)
+        df2 = lp.remove_obs_after_lim(bufr_ref.df, bufr_ref.df, 236, match_type=[136], nthres=3)
+
+        # Check to make sure that df1 was altered compared to tmp_bufr
+        assert len(df1) != start_len
+
+        # Check to make sure that df1 and df2 have the same obs
+        assert np.all(df1['SID'].values == df2['SID'].values)
 
 
 """

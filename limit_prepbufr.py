@@ -21,14 +21,18 @@ import pyDA_utils.bufr as bufr
 # Functions
 #---------------------------------------------------------------------------------------------------
 
-def remove_obs_after_lim(df, obtype, match_type=[136], match_fields=[], nthres=3, field='cond', debug=0):
+def remove_obs_after_lim(df, ref_df, obtype, match_type=[136], match_fields=[], nthres=3, 
+                         field='cond', inplace=True,  debug=0):
     """
     Remove all obs from a given TYP/SID combo after nthres values from field are True
 
     Parameters
     ----------
     df : pd.DataFrame
-        DataFrame with output from a prepBUFR file
+        DataFrame with output from a prepBUFR file. This is the df that is altered.
+    ref_df : pd.DataFrame
+        DataFrame with output from a prepBUFR file. Limits are determined using ref_df and are then
+        applied to df. ref_df and df must include the same exact observations!
     obtype : integer
         Observation type associated with the "field" column
     match_type : list of integers, optional
@@ -41,21 +45,29 @@ def remove_obs_after_lim(df, obtype, match_type=[136], match_fields=[], nthres=3
         Number of obs in a row that have to have "field" == True before removing the rest of the obs
         from that particular TYP/SID
     field : string, optional
-        Column of df containing the condition that must be met to remove obs
+        Column of ref_df containing the condition that must be met to remove obs
+    inplace : boolean, optional
+        If false, create a copy before dropping rows from df. This will likely increase memory use.
     debug : integer, optional
         Option to print extra output for debugging. Higher numbers means more output
 
     Returns
     -------
-    df : pd.DataFrame
+    df_copy : pd.DataFrame
         DataFrame with obs removed
 
     """
 
+    # Check that df and ref_df include the same observations
+    check_col = ['SID', 'TYP', 'DHR']
+    for c in check_col:
+        if ~np.all(df[c].values == ref_df[c].values):
+            raise ValueError('df and ref_df contain different observations')
+
     idx_drop = []
     all_sid = np.unique(df.loc[df['TYP'] == obtype, 'SID'].values)
     for s in all_sid:
-        tmp_df = df.loc[np.logical_and(df['TYP'] == obtype, df['SID'] == s)].copy()
+        tmp_df = ref_df.loc[np.logical_and(df['TYP'] == obtype, df['SID'] == s)].copy()
         tmp_df.sort_values('DHR', inplace=True)
         if debug > 0:
             print(f"{s}")
@@ -70,21 +82,25 @@ def remove_obs_after_lim(df, obtype, match_type=[136], match_fields=[], nthres=3
             # Match to other observation type
             for t in match_type:
                 dhr = tmp_df.loc[tmp_df.index[idx_cond[0]], 'DHR']
-                match_cond = ((df['TYP'] == t) * (df['SID'] == s) * (df['DHR'] >= dhr))
+                match_cond = ((ref_df['TYP'] == t) * (ref_df['SID'] == s) * (ref_df['DHR'] >= dhr))
                 for f in match_fields:
-                    match_cond = match_cond * (df[f] == tmp_df.loc[tmp_df.index[idx_cond[0]], f])
+                    match_cond = match_cond * (ref_df[f] == tmp_df.loc[tmp_df.index[idx_cond[0]], f])
                 if debug > 0:
                     print(f"DHR to start dropping = {dhr}")
                     print(f"adding {np.sum(match_cond)} indices for {t} {s}")
                 if np.sum(match_cond) > 0:
-                    idx_drop = idx_drop + list(df.index[match_cond].values)
+                    idx_drop = idx_drop + list(ref_df.index[match_cond].values)
 
     # Drop indices
     if debug > 0: print(f"len(idx_drop) = {len(idx_drop)}")
-    df.drop(idx_drop, inplace=True)
-    df.reset_index(inplace=True, drop=True)
+    if inplace:
+        df_copy = copy.deepcopy(df)
+    else:
+        df_copy = df
+    df_copy.drop(idx_drop, inplace=True)
+    df_copy.reset_index(inplace=True, drop=True)
 
-    return df
+    return df_copy
 
 
 def wspd_limit(bufr_obj, lim=15, wind_type=236, verbose=0):
