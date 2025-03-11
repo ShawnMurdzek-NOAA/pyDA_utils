@@ -56,7 +56,7 @@ class ensemble():
     state_fields : list of strings, optional
         Fields to include in state matrix
     bec : boolean, optional
-        Option to compute BEC matrix
+        Option to compute background error covariance (BEC) matrix
 
     """
 
@@ -245,7 +245,7 @@ class ensemble():
         return state_matrix
 
 
-    def _compute_ens_stats(self, stat_fct={'mean':np.mean, 'std': np.std}):
+    def _compute_ens_stats(self, stat_fct={'mean':np.mean, 'std':np.std, 'med':np.median}):
         """
         Compute ensemble statistics
  
