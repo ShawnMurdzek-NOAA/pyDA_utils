@@ -52,7 +52,7 @@ class ensemble():
     zind : list of integers, optional
         Vertical indices for subset
     zfield : string, optional
-        Field to apply zind to
+        Field to apply zind to. Set to None to not subset domain in vertical
     state_fields : list of strings, optional
         Fields to include in state matrix
     bec : boolean, optional
@@ -172,7 +172,7 @@ class ensemble():
         zind : list of integers
             Vertical index 
         zfield : string, optional
-            Field to apply zind to
+            Field to apply zind to. Set to None to not subset in the vertical.
 
         Returns
         -------
@@ -186,9 +186,13 @@ class ensemble():
         subset_ds = {}
         zdict = {zfield:zind}
         for key in self.mem_names:
-            subset_ds[key] = self.ds[key].sel(xgrid_0=slice(crnr_ind[2], crnr_ind[3]), 
-                                              ygrid_0=slice(crnr_ind[0], crnr_ind[1]), 
-                                              **zdict)
+            if zfield is None:
+                subset_ds[key] = self.ds[key].sel(xgrid_0=slice(crnr_ind[2], crnr_ind[3]), 
+                                                  ygrid_0=slice(crnr_ind[0], crnr_ind[1]))
+            else:
+                subset_ds[key] = self.ds[key].sel(xgrid_0=slice(crnr_ind[2], crnr_ind[3]), 
+                                                  ygrid_0=slice(crnr_ind[0], crnr_ind[1]), 
+                                                  **zdict)
 
         return subset_ds
 
