@@ -93,6 +93,16 @@ class TestEnsemble():
             assert np.allclose(sample_ds['gridlon_0'].values, lon3d[0, :, :])
 
 
+    def test_ens_stat(self, sample_ens):
+
+        # Test both 2D and 3D fields
+        for f in ['TMP_P0_L1_GLC0', 'TMP_P0_L105_GLC0']:
+            avg = sample_ens.ens_stats(f, stat_fct=np.mean)
+            avg_truth = 0.5*(sample_ens.subset_ds['mem0001'][f].values +
+                             sample_ens.subset_ds['mem0002'][f].values)
+            assert np.allclose(avg, avg_truth)
+
+
     def test_check_pts_in_subset_domain(self, sample_ens):
         ctr_lat = 0.5 * (sample_ens.lat_limits[0] + sample_ens.lat_limits[1])
         ctr_lon = 0.5 * (sample_ens.lon_limits[0] + sample_ens.lon_limits[1])

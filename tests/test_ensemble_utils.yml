@@ -2,13 +2,13 @@
 #--------------------------------------------
 
 # UPP output for each ensemble member
-str_format: '/mnt/lfs5/BMC/wrfruc/murdzek/RRFS_Ens_Cloud_DA/Feb2022_retro/Ens_GDAS_SDLVDL_noGF_cloud1/v0.6.2/prod/rrfs_conus_3km_ensda.20220201/08/mem{num:04d}/rrfs.t08z.{lev}.f001.conus_3km.grib2'
+str_format: '/gpfs/f6/bil-pmp/scratch/Shawn.S.Murdzek/RRFS_Ens_Cloud_DA/Feb2022_retro/Ens_GDAS_SDLVDL_noGF_cloud1/v0.6.2/prod/rrfs_conus_3km_ensda.20220201/08/mem{num:04d}/rrfs.t08z.{lev}.f001.conus_3km.grib2'
 prslev_vars:
   - 'HGT_P0_L215_GLC0'
 nmem: 2
 
 # BUFR parameters
-bufr_fname: '/lfs5/BMC/wrfruc/murdzek/real_obs/decoded_bufr_for_cloudDA/202202010900.rap.prepbufr.csv'
+bufr_fname: '/gpfs/f6/bil-pmp/scratch/Shawn.S.Murdzek/real_obs/decoded_bufr_for_cloudDA/202202010900.rap.prepbufr.csv'
 
 # Subset domain
 min_lon: -100

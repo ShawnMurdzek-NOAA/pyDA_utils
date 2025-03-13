@@ -247,7 +247,7 @@ class ensemble():
 
     def _compute_ens_stats(self, stat_fct={'mean':np.mean, 'std':np.std, 'med':np.median}):
         """
-        Compute ensemble statistics
+        Compute ensemble statistics for the state matrix
  
         Parameters
         ----------
@@ -301,6 +301,38 @@ class ensemble():
         be_cov = np.cov(self.state_matrix['data'])
            
         return be_cov, be_corr
+    
+
+    def ens_stats(self, field, stat_fct=np.mean, stat_kw={}):
+        """
+        Compute ensemble statistics for any field in self.subset_ds
+ 
+        Parameters
+        ----------
+        field : string
+            Field to compute statistics for. Must exist in self.subset_ds
+        stat_fct : function
+            Function for computing statistics
+        stat_kw : dictionary, optional
+            Keyword arguments passed to stat_fct
+
+        Returns
+        -------
+        stat : np.array
+            Output of stat_fct applied to the desired field
+
+        """
+
+        # Create ND array, where first dimension is the ensemble members
+        n = len(self.mem_names)
+        full = np.zeros(tuple([n] + [d for d in self.subset_ds[self.mem_names[0]][field].shape]))
+        for i, m in enumerate(self.mem_names):
+            full[i] = self.subset_ds[m][field].values
+
+        # Apply statistical function
+        stat = stat_fct(full, axis=0, **stat_kw)
+           
+        return stat
 
 
     def check_pts_in_subset_domain(self, points):
