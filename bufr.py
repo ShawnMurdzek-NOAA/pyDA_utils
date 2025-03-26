@@ -471,7 +471,7 @@ def plot_obs(bufr_df, colorcode=None, fig=None, nrows=1, ncols=1, axnum=1,
     return ax
 
 
-def df_to_csv(df, fname):
+def df_to_csv(df, fname, quotes=True):
     """
     Write a DataFrame to a BUFR CSV file
 
@@ -481,6 +481,8 @@ def df_to_csv(df, fname):
         Pandas DataFrame with the same format as a BUFR DataFrame
     fname : string
         Filename for bufr CSV file
+    quotes : boolean, optional
+        Option to place output strings in quotes (necessary if converting back to BUFR)
 
     Returns
     -------
@@ -496,18 +498,19 @@ def df_to_csv(df, fname):
 
     # Place strings in quotes (otherwise an error occurs when converting back to BUFR format)
     # The `tmp == tmp` line checks for NaNs
-    for field in ['SID', 'PRVSTG', 'SPRVSTG']:
-        tmp = df[field].values
-        new = np.empty([len(tmp)], dtype=object)
-        for j in range(len(tmp)):
-            if (tmp[j] == tmp[j]):
-                if (tmp[j][0] != "'"):
-                    new[j] = "'%s'" % tmp[j]
+    if quotes:
+        for field in ['SID', 'PRVSTG', 'SPRVSTG']:
+            tmp = df[field].values
+            new = np.empty([len(tmp)], dtype=object)
+            for j in range(len(tmp)):
+                if (tmp[j] == tmp[j]):
+                    if (tmp[j][0] != "'"):
+                        new[j] = "'%s'" % tmp[j]
+                    else:
+                        new[j] = tmp[j]
                 else:
-                    new[j] = tmp[j]
-            else:
-                new[j] = "'100000000000.0000'"
-        df[field] = new
+                    new[j] = "'100000000000.0000'"
+            df[field] = new
     
     # Replace NaNs with 1e11
     df = df.fillna(1e11)
