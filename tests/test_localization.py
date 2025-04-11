@@ -55,9 +55,14 @@ class TestLocalization():
         return coords
     
 
-    def test_compute_latlon_dist(self, sample_local, sample_coords):
-        dist = sample_local.compute_latlon_dist(sample_coords['model_pts'], sample_coords['ob_pt'])
+    def test_compute_latlon_dist_geodesic(self, sample_local, sample_coords):
+        dist = sample_local.compute_latlon_dist(sample_coords['model_pts'], sample_coords['ob_pt'], method='geodesic')
         assert np.allclose(dist, sample_coords['truth_dist'], rtol=1e-5)
+
+
+    def test_compute_latlon_dist_haversine(self, sample_local, sample_coords):
+        dist = sample_local.compute_latlon_dist(sample_coords['model_pts'], sample_coords['ob_pt'], method='haversine')
+        assert np.allclose(dist, sample_coords['truth_dist'], rtol=0.005)
 
 
     def test_compute_partial_localization(self, sample_local, sample_coords):

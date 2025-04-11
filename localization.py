@@ -11,6 +11,7 @@ shawn.s.murdzek@noaa.gov
 import numpy as np
 import matplotlib.pyplot as plt
 import geopy.distance as gd
+from haversine import haversine_vector
 
 
 #---------------------------------------------------------------------------------------------------
@@ -175,9 +176,11 @@ class localization_fct():
         return C
     
 
-    def compute_latlon_dist(self, coord_array, coord_pt):
+    def compute_latlon_dist(self, coord_array, coord_pt, method='haversine'):
         """
         Compute the distance between an array of (lat, lon) points and a single (lat, lon) point
+
+        Implementation uses the haversine function
 
         Parameters
         ----------
@@ -185,6 +188,10 @@ class localization_fct():
             Array of (lat, lon) coordinates. Dimensions: (npts, 2)
         coord_pt : float
             A single (lat, lon) point
+        method : string, optional
+            Method used to compute the distance. Options:
+                'haversine' : Use the haversine function. Faster, but less accurate
+                'geodesic' : Use geopy.distance. Slower, but more accurate
         
         Returns
         -------
@@ -192,9 +199,12 @@ class localization_fct():
             1D array of distances between coord_array and coord_pt (km)
         """
  
-        dist = np.zeros(coord_array.shape[0])
-        for i in range(len(dist)):
-            dist[i] = gd.distance(coord_array[i, :], coord_pt).km
+        if method == 'haversine':
+            dist = np.squeeze(haversine_vector(coord_array, coord_pt, check=False, comb=True))
+        elif method == 'geodesic':
+            dist = np.zeros(coord_array.shape[0])
+            for i in range(len(dist)):
+                dist[i] = gd.distance(coord_array[i, :], coord_pt).km
 
         return dist
 
