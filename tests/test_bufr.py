@@ -94,6 +94,29 @@ class TestBUFR():
         assert not np.all(np.array(n_entries) == 1)
 
 
+    def test_select_latlon(self, sample_pb):
+        """
+        Test method to only select observations in a (lat, lon) box
+        """
+
+        tmp_bufr = copy.deepcopy(sample_pb)
+
+        # Size of DataFrame before restrictions
+        init_len = len(tmp_bufr.df)
+
+        # Restrict obs to be in a smaller box
+        tmp_bufr.select_latlon(35, 250, 45, 270)
+
+        # Check that DataFrame is smaller after restricting obs to a smaller domain
+        assert len(tmp_bufr.df) < init_len
+        
+        # Check that none of the (lat, lon) coordinates fall outside the desired box
+        assert tmp_bufr.df['XOB'].max() <= 270
+        assert tmp_bufr.df['XOB'].min() >= 250
+        assert tmp_bufr.df['YOB'].max() <= 45
+        assert tmp_bufr.df['YOB'].min() >= 35
+
+
     def test_match_types(self, sample_pb):
         """
         Test method to match thermodynamic and kinematic obs together

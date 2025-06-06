@@ -129,6 +129,29 @@ class bufrCSV():
         self.df = self.df.loc[keep_idx]
 
 
+    def select_latlon(self, minlat, minlon, maxlat, maxlon):
+        """
+        Subset the prepbufr CSV so that it only contains observations within a given (lat, lon) box
+
+        Parameters
+        ----------
+        minlat : float
+            Minimum latitude (deg N)
+        minlon : float
+            Minimum longitude (deg E, range 0 to 360)
+        maxlat : float
+            Maximum latitude (deg N)
+        maxlon : float
+            Maximum longitude (deg E, range 0 to 360)
+
+        """
+
+        self.df = self.df.loc[(self.df['XOB'] >= minlon) &
+                              (self.df['XOB'] <= maxlon) &
+                              (self.df['YOB'] >= minlat) &
+                              (self.df['YOB'] <= maxlat), :]
+                
+
     def match_types(self, typ1, typ2, match_fields=['SID', 'XOB', 'YOB'], nearest_field='DHR', 
                     copy_fields=[]):
         """
