@@ -123,7 +123,8 @@ class PlotPostageStamp():
                 self.pmd_objs[i].ax.set_aspect('equal')
 
 
-    def contourf(self, var, cbar_all=True, kw={}, cbar_kw={}, label_kw={}):
+    def contourf(self, var, cbar_all=True, kw={}, cbar_kw={}, label_kw={},
+                 cbar_ax_lim=[0.91, 0.05, 0.03, 0.8]):
         """
         Create contourf plots
 
@@ -139,6 +140,8 @@ class PlotPostageStamp():
             Other keyword arguments passed to colorbar (key must be a string)
         label_kw : dict, optional
             Other keyword arguments passed to colorbar.set_label (key must be a string)
+        cbar_ax_lim : list of floats
+            Location of colorbar axes. Format: [left, bottom, width, height]
 
         """
 
@@ -157,9 +160,9 @@ class PlotPostageStamp():
 
         # Add colorbar
         if cbar_all:
-            axes = [o.ax for o in self.pmd_objs]
             smpl_obj = self.pmd_objs[0]
-            self.cbar = plt.colorbar(smpl_obj.cax, ax=axes, **cbar_kw)
+            cbar_ax = self.fig.add_axes(cbar_ax_lim)
+            self.cbar = plt.colorbar(smpl_obj.cax, cax=cbar_ax, **cbar_kw)
             self.cbar.set_label('%s%s (%s)' % (smpl_obj.metadata['contourf0']['interp'],
                                                smpl_obj.metadata['contourf0']['name'],
                                                smpl_obj.metadata['contourf0']['units']), **label_kw)
