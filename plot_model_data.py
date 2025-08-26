@@ -74,7 +74,8 @@ class PlotOutput():
     proj : CartoPy projection, optional
         Map projection used for plotting. Does not need to match the map projection of the data (the 
         map projection of the data is irrelevant because the coordinates used for plotting are 
-        (lat, lon), which is not a projection).
+        (lat, lon), which is not a projection). Set to None for idealized model output that does not
+        have meaningful (lat, lon) coordinates.
 
     Notes
     -----
@@ -95,6 +96,10 @@ class PlotOutput():
         self.ncols = ncols
         self.n = axnum
         self.proj = proj
+        if proj is None:
+            self.data_proj = None
+        else:
+            self.data_proj = ccrs.PlateCarree()
 
         # Dictionary used to hold metadata
         self.metadata = {}
@@ -212,9 +217,15 @@ class PlotOutput():
                 data = raw
                 self.metadata[ptype]['interp'] = ''
   
-            # Get lat/lon coordinates
-            lat, lon = wrf.latlon_coords(data)
-            coords = [wrf.to_np(lat), wrf.to_np(lon)]
+            # Get (x, y) coordinate for idealized runs and (lat, lon) coordinates for real-data runs
+            if self.proj is None:
+                attrs = wrf.extract_global_attrs(self.fptr, ['DX', 'DY'])
+                nx = self.fptr.dimensions['west_east'].size
+                ny = self.fptr.dimensions['south_north'].size
+                coords = [np.arange(ny) * attrs['DY'] * 1e-3, np.arange(nx) * attrs['DX'] * 1e-3]
+            else:
+                lat, lon = wrf.latlon_coords(data)
+                coords = [wrf.to_np(lat), wrf.to_np(lon)]
 
             # Extract time if not done so already
             # This should really be done in __init__, but it's a bit tricky finding the time in the 
@@ -356,7 +367,10 @@ class PlotOutput():
 
         """
 
-        self.ax = self.fig.add_subplot(self.nrows, self.ncols, self.n, projection=self.proj) 
+        if self.proj is None:
+            self.ax = self.fig.add_subplot(self.nrows, self.ncols, self.n) 
+        else:
+            self.ax = self.fig.add_subplot(self.nrows, self.ncols, self.n, projection=self.proj) 
 
 
     def config_ax(self, coastlines=True, states=True, grid=True, scale='50m', line_kw={}):
@@ -421,7 +435,7 @@ class PlotOutput():
         if not hasattr(self, 'ax'):
             self._create_hcrsxn_ax(data)
 
-        self.cax = self.ax.contourf(coords[1], coords[0], data, transform=ccrs.PlateCarree(), 
+        self.cax = self.ax.contourf(coords[1], coords[0], data, transform=self.data_proj, 
                                     **cntf_kw)
 
         if cbar:
@@ -457,7 +471,7 @@ class PlotOutput():
         if not hasattr(self, 'ax'):
             self._create_hcrsxn_ax(data)
 
-        self.cax = self.ax.pcolormesh(coords[1], coords[0], data, transform=ccrs.PlateCarree(), 
+        self.cax = self.ax.pcolormesh(coords[1], coords[0], data, transform=self.data_proj, 
                                       **pcm_kw)
 
         if cbar:
@@ -499,9 +513,9 @@ class PlotOutput():
             mx = np.amax(np.abs(data))
             lvls = np.linspace(-mx, mx, 20) 
             self.cax = self.ax.contourf(coords[1], coords[0], data, lvls, 
-                                        transform=ccrs.PlateCarree(), cmap='bwr', **cntf_kw)
+                                        transform=self.data_proj, cmap='bwr', **cntf_kw)
         else:
-            self.cax = self.ax.contourf(coords[1], coords[0], data, transform=ccrs.PlateCarree(), 
+            self.cax = self.ax.contourf(coords[1], coords[0], data, transform=self.data_proj, 
                                         **cntf_kw)
 
         # Compute RMSD
@@ -538,7 +552,7 @@ class PlotOutput():
         if not hasattr(self, 'ax'):
             self._create_hcrsxn_ax(data)
 
-        self.cax = self.ax.contour(coords[1], coords[0], data, transform=ccrs.PlateCarree(), 
+        self.cax = self.ax.contour(coords[1], coords[0], data, transform=self.data_proj, 
                                    **cnt_kw)
 
         if label:
@@ -576,7 +590,7 @@ class PlotOutput():
 
         self.cax = self.ax.barbs(coords[1][::thin, ::thin], coords[0][::thin, ::thin], 
                                  xdata[::thin, ::thin], ydata[::thin, ::thin], 
-                                 transform=ccrs.PlateCarree(), **barb_kw)
+                                 transform=self.data_proj, **barb_kw)
 
     
     def quiver(self, xvar, yvar, thin=1, ingest_kw={}, qv_kw={}):
@@ -606,7 +620,7 @@ class PlotOutput():
 
         self.cax = self.ax.quiver(coords[1][::thin, ::thin], coords[0][::thin, ::thin], 
                                   xdata[::thin, ::thin], ydata[::thin, ::thin], 
-                                  transform=ccrs.PlateCarree(), **qv_kw)
+                                  transform=self.data_proj, **qv_kw)
 
 
     def plot(self, lon, lat, plt_kw={}):
@@ -625,7 +639,7 @@ class PlotOutput():
         if not hasattr(self, 'ax'):
             self._create_hcrsxn_ax(None)
 
-        self.cax = self.ax.plot(lon, lat, transform=ccrs.PlateCarree(), **plt_kw)
+        self.cax = self.ax.plot(lon, lat, transform=self.data_proj, **plt_kw)
 
 
     def cfad(self, var, zvar, bins=None, prs=False, cntf_kw={}, cbar_kw={}, label_kw={}):
