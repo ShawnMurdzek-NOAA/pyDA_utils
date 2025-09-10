@@ -264,7 +264,6 @@ class TestBUFR():
                 (tmp_bufr.df['YOB'] < 50) * (tmp_bufr.df['YOB'] > 25))
         tmp_bufr.df = tmp_bufr.df.loc[cond, :]
         tmp_bufr.df.reset_index(drop=True, inplace=True)
-        print(len(tmp_bufr.df))
 
         # Check that there are some points within the thinning radius of the first ob
         all_pts = np.array([tmp_bufr.df['YOB'].values, tmp_bufr.df['XOB'] - 360]).T
@@ -279,15 +278,11 @@ class TestBUFR():
         dist = np.squeeze(haversine_vector(all_pts, pt1, check=False, comb=True))
         assert len(thin_df) < len(tmp_bufr.df)
         assert np.amin(dist[1:]) >= (1e-3 * radius)
-        print(len(tmp_bufr.df))
 
         # Apply thinning with retain_all_sid = True
-
         # Only use ADPSFC obs
         tmp_bufr.df = tmp_bufr.df.loc[tmp_bufr.df['subset'] == 'ADPSFC']
         tmp_bufr.df.reset_index(drop=True, inplace=True)
-        print(len(tmp_bufr.df))
-
         thin_df = bufr.thin_obs_2d(tmp_bufr.df, radius=radius, retain_all_sid=True)
         all_pts = np.array([thin_df['YOB'].values, thin_df['XOB'] - 360]).T
         pt1 = np.array([thin_df['YOB'].values[0], thin_df['XOB'].values[0] - 360])
