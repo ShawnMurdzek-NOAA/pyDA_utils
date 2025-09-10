@@ -251,13 +251,20 @@ class TestBUFR():
         assert np.isclose(np.mean(err), 0, atol=0.3)
 
 
-    def test_thin_obs(self, sample_pb):
+    def test_thin_obs_2d(self, sample_pb):
         """
         Test function to thin obs
         """
 
         tmp_bufr = copy.deepcopy(sample_pb)
-        radius = 50000.  # meters
+        radius = 1500000.  # meters
+
+        # Only use obs in the region appropriate for the map projection
+        cond = ((tmp_bufr.df['XOB'] < 300) * (tmp_bufr.df['XOB'] > 250) *
+                (tmp_bufr.df['YOB'] < 50) * (tmp_bufr.df['YOB'] > 25))
+        tmp_bufr.df = tmp_bufr.df.loc[cond, :]
+        tmp_bufr.df.reset_index(drop=True, inplace=True)
+        print(len(tmp_bufr.df))
 
         # Check that there are some points within the thinning radius of the first ob
         all_pts = np.array([tmp_bufr.df['YOB'].values, tmp_bufr.df['XOB'] - 360]).T
@@ -266,12 +273,32 @@ class TestBUFR():
         assert np.amin(dist[1:]) < (1e-3 * radius)
 
         # Apply thinning, then check that there are no points in the thinning radius
-        thin_df = bufr.thin_obs(tmp_bufr.df, radius=radius)
+        thin_df = bufr.thin_obs_2d(tmp_bufr.df, radius=radius)
         all_pts = np.array([thin_df['YOB'].values, thin_df['XOB'] - 360]).T
         pt1 = np.array([thin_df['YOB'].values[0], thin_df['XOB'].values[0] - 360])
         dist = np.squeeze(haversine_vector(all_pts, pt1, check=False, comb=True))
         assert len(thin_df) < len(tmp_bufr.df)
         assert np.amin(dist[1:]) >= (1e-3 * radius)
+        print(len(tmp_bufr.df))
+
+        # Apply thinning with retain_all_sid = True
+
+        # Only use ADPSFC obs
+        tmp_bufr.df = tmp_bufr.df.loc[tmp_bufr.df['subset'] == 'ADPSFC']
+        tmp_bufr.df.reset_index(drop=True, inplace=True)
+        print(len(tmp_bufr.df))
+
+        thin_df = bufr.thin_obs_2d(tmp_bufr.df, radius=radius, retain_all_sid=True)
+        all_pts = np.array([thin_df['YOB'].values, thin_df['XOB'] - 360]).T
+        pt1 = np.array([thin_df['YOB'].values[0], thin_df['XOB'].values[0] - 360])
+        dist = np.squeeze(haversine_vector(all_pts, pt1, check=False, comb=True))
+        assert len(thin_df) < len(tmp_bufr.df)
+        duplicate = False
+        for s in thin_df['SID']:
+            if np.sum(thin_df['SID'] == s) > 1: duplicate = True
+        assert duplicate
+        sid = thin_df['SID'].values[0]
+        assert np.amin(dist[thin_df['SID'] != sid]) >= (1e-3 * radius)
 
 
 """

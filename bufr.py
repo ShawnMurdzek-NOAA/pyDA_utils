@@ -1015,8 +1015,8 @@ def compute_ceil(df, use_typ=[187], no_ceil=2e4):
     return ceil
 
 
-def thin_obs(df, proj_str='+proj=lcc +lat_0=39 +lon_0=-96 +lat_1=33 +lat_2=45', 
-             radius=50000, priority=None):
+def thin_obs_2d(df, proj_str='+proj=lcc +lat_0=39 +lon_0=-96 +lat_1=33 +lat_2=45', 
+             radius=50000, priority=None, retain_all_sid=False):
     """
     Thin observations in a DataFrame
 
@@ -1030,6 +1030,10 @@ def thin_obs(df, proj_str='+proj=lcc +lat_0=39 +lon_0=-96 +lat_1=33 +lat_2=45',
         Minimum distance allowed between points (m)
     priority : array, optional
         Array of len(df) that specifies which points should be given priority
+    retain_all_sid : boolean, optional
+        Option to retain all entries for a given SID, even if they are within radius m.
+        This option is useful when filtering surface stations that may have multiple entires per
+        SID. This option is less useful for observations that move horizontally, like aircraft.
 
     Returns
     -------
@@ -1041,10 +1045,19 @@ def thin_obs(df, proj_str='+proj=lcc +lat_0=39 +lon_0=-96 +lat_1=33 +lat_2=45',
     # Create map projection and transform (lat, lon) coordinates
     proj = pyproj.Proj(proj_str)
     pts = np.array(proj(df['XOB'].values - 360, df['YOB'].values)).T
+    print(pts)
 
     # Thin obs
     mask = mc.reduce_point_density(pts, radius, priority=priority)
+    print(mask)
     thin_df = df.loc[mask, :]
+
+    # Restore additional rows if retain_all_sid = True
+    if retain_all_sid:
+        cond = np.zeros(len(df))
+        for s in thin_df['SID'].values:
+            cond = cond + (df['SID'] == s)
+        thin_df = df.loc[cond > 0, :]
 
     return thin_df
 
