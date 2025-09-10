@@ -1045,11 +1045,9 @@ def thin_obs_2d(df, proj_str='+proj=lcc +lat_0=39 +lon_0=-96 +lat_1=33 +lat_2=45
     # Create map projection and transform (lat, lon) coordinates
     proj = pyproj.Proj(proj_str)
     pts = np.array(proj(df['XOB'].values - 360, df['YOB'].values)).T
-    print(pts)
 
     # Thin obs
     mask = mc.reduce_point_density(pts, radius, priority=priority)
-    print(mask)
     thin_df = df.loc[mask, :]
 
     # Restore additional rows if retain_all_sid = True
