@@ -518,7 +518,7 @@ def df_to_csv(df, fname, quotes=True):
     nmsg = df['nmsg'].values
     for i, msg in enumerate(df['nmsg'].unique()):
         nmsg[np.where(nmsg == msg)] = i+1
-    df['nmsg'] = nmsg        
+    df.loc[:, 'nmsg'] = nmsg        
 
     # Place strings in quotes (otherwise an error occurs when converting back to BUFR format)
     # The `tmp == tmp` line checks for NaNs
