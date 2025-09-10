@@ -16,6 +16,7 @@ import numpy as np
 import pytest
 import copy
 import random
+from haversine import haversine_vector
 
 import pyDA_utils.bufr as bufr
 
@@ -188,7 +189,7 @@ class TestBUFR():
 
     def test_create_corr_obs_err(self, sample_add_err_pb):
         """
-        Test method to create uncorrelated observation errors
+        Test method to create correlated observation errors
         """
 
         # Constant stdev
@@ -248,6 +249,29 @@ class TestBUFR():
         assert np.isclose(np.std(err[:nhalf]), 0.5, atol=0.05)
         assert np.isclose(np.std(err[nhalf:]), 5, atol=0.5)
         assert np.isclose(np.mean(err), 0, atol=0.3)
+
+
+    def test_thin_obs(self, sample_pb):
+        """
+        Test function to thin obs
+        """
+
+        tmp_bufr = copy.deepcopy(sample_pb)
+        radius = 50000.  # meters
+
+        # Check that there are some points within the thinning radius of the first ob
+        all_pts = np.array([tmp_bufr.df['YOB'].values, tmp_bufr.df['XOB'] - 360]).T
+        pt1 = np.array([tmp_bufr.df['YOB'].values[0], tmp_bufr.df['XOB'].values[0] - 360])
+        dist = np.squeeze(haversine_vector(all_pts, pt1, check=False, comb=True))
+        assert np.amin(dist[1:]) < (1e-3 * radius)
+
+        # Apply thinning, then check that there are no points in the thinning radius
+        thin_df = bufr.thin_obs(tmp_bufr.df, radius=radius)
+        all_pts = np.array([thin_df['YOB'].values, thin_df['XOB'] - 360]).T
+        pt1 = np.array([thin_df['YOB'].values[0], thin_df['XOB'].values[0] - 360])
+        dist = np.squeeze(haversine_vector(all_pts, pt1, check=False, comb=True))
+        assert len(thin_df) < len(tmp_bufr.df)
+        assert np.amin(dist[1:]) >= (1e-3 * radius)
 
 
 """

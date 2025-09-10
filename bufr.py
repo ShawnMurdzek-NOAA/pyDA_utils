@@ -25,6 +25,7 @@ import os
 import inspect
 import warnings
 import datetime as dt
+import pyproj
 
 import pyDA_utils.gsi_fcts as gsi
 import pyDA_utils.meteo_util as mu
@@ -1012,6 +1013,40 @@ def compute_ceil(df, use_typ=[187], no_ceil=2e4):
                     ceil[idx[0]] = no_ceil
 
     return ceil
+
+
+def thin_obs(df, proj_str='+proj=lcc +lat_0=39 +lon_0=-96 +lat_1=33 +lat_2=45', 
+             radius=50000, priority=None):
+    """
+    Thin observations in a DataFrame
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Observations. Must contain the columns XOB (deg E, 0 to 360) and YOB (deg N)
+    proj_str : string, optional
+        Map projection passed to pyproj
+    radius : float, optional
+        Minimum distance allowed between points (m)
+    priority : array, optional
+        Array of len(df) that specifies which points should be given priority
+
+    Returns
+    -------
+    thin_df : pd.DataFrame
+        Thinned observations
+
+    """
+
+    # Create map projection and transform (lat, lon) coordinates
+    proj = pyproj.Proj(proj_str)
+    pts = np.array(proj(df['XOB'].values - 360, df['YOB'].values)).T
+
+    # Thin obs
+    mask = mc.reduce_point_density(pts, radius, priority=priority)
+    thin_df = df.loc[mask, :]
+
+    return thin_df
 
 
 """
