@@ -27,7 +27,8 @@ def gaspari_cohn_5ord(dist, f):
     dist : np.array
         Distance between two items
     f : float
-        Normalization factor (related to localization)
+        Normalization factor (related to localization).
+        When used for localization, f is the half length (i.e., the localization goes to 0 at 2f).
     
     Returns
     -------
