@@ -106,7 +106,7 @@ def write_errtable(fname, errors):
     for o in ob_types:
         fptr.write(' %d OBSERVATION TYPE\n' % o)
         for h in headers:
-            errors[o][h][np.isnan(errors[o][h])] = 0.1e10
+            errors[o].loc[np.isnan(errors[o][h]), h] = 0.1e10
         for j in range(len(errors[o]['prs'])):
             line = ' '
             for h in headers: 
