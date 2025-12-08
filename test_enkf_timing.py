@@ -23,7 +23,7 @@ n = 50
 time = np.zeros(n)
 for i in range(n):
     start = dt.datetime.now()
-    enkf_obj = enkf.enkf_1ob(x_b, y_0, Hx_b, ob_var)
+    enkf_obj = enkf.enkf_1ob(x_b, y_0, Hx_b, ob_var, jit=False)
     enkf_obj.EnSRF()
     time[i] = (dt.datetime.now() - start).total_seconds()
 print(f"Avg elapsed time = {np.mean(time)} s")

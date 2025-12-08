@@ -9,6 +9,38 @@ shawn.s.murdzek@noaa.gov
 #---------------------------------------------------------------------------------------------------
 
 import numpy as np
+from numba import njit
+
+
+#---------------------------------------------------------------------------------------------------
+# JIT Functions for optimization
+#---------------------------------------------------------------------------------------------------
+
+# These functions must be separate from the EnKF class for maximum benefit
+# Using JIT in an Python class is convoluted and often not optimal
+
+# JIT is currently not providing any speedup (if anything, it's slower at the moment)
+# Maybe there is a speedup if the EnSRF is called several times in serial (similar to the actual EnSRF implementation)
+# Can also try writing explicit, nested looped in the JIT functions, which the JIT shoud excel at
+# May try adding JIT to other computations?
+
+@njit
+def compute_PbHT(x_b_dev, Hx_b_dev, N, m):
+    dum = np.zeros(m)
+    for i in range(N):
+        dum = dum + (x_b_dev[:, i] * Hx_b_dev[i])
+    return dum / (N - 1)
+
+@njit
+def compute_HPbHT(Hx_b, Hx_b_bar, N):
+    return np.sum((Hx_b - Hx_b_bar)**2) / (N - 1)
+
+@njit
+def compute_x_a_dev(x_b_dev, alpha, K, Hx_b_dev, N):
+    x_a_dev = np.zeros(x_b_dev.shape)
+    for i in range(N):
+        x_a_dev[:, i] = x_b_dev[:, i] - (alpha * K * Hx_b_dev[i])
+    return x_a_dev
 
 
 #---------------------------------------------------------------------------------------------------
@@ -56,13 +88,14 @@ class enkf_1ob():
 
     """
 
-    def __init__(self, x_b, y_0, Hx_b, ob_var, localize=None):
+    def __init__(self, x_b, y_0, Hx_b, ob_var, localize=None, jit=False):
 
         self.x_b = x_b
         self.y_0 = y_0
         self.Hx_b = Hx_b
         self.ob_var = ob_var
         self.local = localize
+        self.jit = jit
 
         self.m, self.N = x_b.shape  # m = number of model variables, N = ensemble size
 
@@ -109,12 +142,18 @@ class enkf_1ob():
             self._compute_Hx_mean_dev()
  
             # Compute PbHT and apply localization
-            self.PbHT = np.inner(self.x_b_dev, self.Hx_b_dev) / (self.N - 1)
+            if self.jit:
+                self.PbHT = compute_PbHT(self.x_b_dev, self.Hx_b_dev, self.N, self.m)
+            else:
+                self.PbHT = np.inner(self.x_b_dev, self.Hx_b_dev) / (self.N - 1)
             if self.local is not None:
                 self.PbHT = self.PbHT * self.local
 
             # Compute HPbHT
-            self.HPbHT = np.sum((self.Hx_b - self.Hx_b_bar)**2) / (self.N - 1)
+            if self.jit:
+                self.HPbHT = compute_HPbHT(self.Hx_b, self.Hx_b_bar, self.N)
+            else:
+                self.HPbHT = np.sum((self.Hx_b - self.Hx_b_bar)**2) / (self.N - 1)
 
             # Compute Kalman gain
             self.K = self.PbHT / (self.HPbHT + self.ob_var)
@@ -133,7 +172,10 @@ class enkf_1ob():
             self._compute_Kalman_gain()
             self.alpha = 1 / (1 + np.sqrt(self.ob_var / (self.HPbHT + self.ob_var)))
             self.x_a_bar = self.x_b_bar + (self.K * (self.y_0 - self.Hx_b_bar))
-            self.x_a_dev = self.x_b_dev - self.alpha * np.outer(self.K, self.Hx_b_dev)
+            if self.jit:
+                self.x_a_dev = compute_x_a_dev(self.x_b_dev, self.alpha, self.K, self.Hx_b_dev, self.N)
+            else:
+                self.x_a_dev = self.x_b_dev - self.alpha * np.outer(self.K, self.Hx_b_dev)
             self.x_a = self.x_a_dev + self.x_a_bar[:, np.newaxis]
 
 
