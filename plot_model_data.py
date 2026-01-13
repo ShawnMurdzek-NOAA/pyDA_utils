@@ -482,7 +482,7 @@ class PlotOutput():
     
     
 
-    def plot_diff(self, var, ingest_kw={}, cntf_kw={}, cbar_kw={}, label_kw={}, auto=True):
+    def plot_diff(self, var, ingest_kw={}, cntf_kw={}, cbar_kw={}, label_kw={}, auto=True, cbar=True):
         """
         Plot data using a filled contour plot
 
@@ -501,6 +501,8 @@ class PlotOutput():
         auto : boolean, optional
             Automatically use the 'bwr' colormap and scale the contour levels so they are centered
             on zero and include the max differences
+        cbar : boolean, optional
+            Option to plot colorbar
 
         """
 
@@ -521,11 +523,12 @@ class PlotOutput():
         # Compute RMSD
         rmsd = np.sqrt(np.mean(data*data))
 
-        self.cbar = plt.colorbar(self.cax, ax=self.ax, **cbar_kw)
-        self.cbar.set_label('diff %s%s (%s)\n[RMSD = %.2e]' % (self.metadata[ptype]['interp'], 
-                                                               self.metadata[ptype]['name'], 
-                                                               self.metadata[ptype]['units'],
-                                                               rmsd), **label_kw)
+        if cbar:
+            self.cbar = plt.colorbar(self.cax, ax=self.ax, **cbar_kw)
+            self.cbar.set_label('diff %s%s (%s)\n[RMSD = %.2e]' % (self.metadata[ptype]['interp'], 
+                                                                   self.metadata[ptype]['name'], 
+                                                                   self.metadata[ptype]['units'],
+                                                                   rmsd), **label_kw)
 
 
     def contour(self, var, label=False, ingest_kw={}, cnt_kw={}, label_kw={}):
