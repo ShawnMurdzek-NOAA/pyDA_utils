@@ -17,6 +17,7 @@ import metpy.calc as mc
 from metpy.units import units
 import metpy.constants as const
 import scipy.interpolate as si
+import matplotlib.pyplot as plt
 
 
 #---------------------------------------------------------------------------------------------------
@@ -273,6 +274,82 @@ def gsi_flags_table(diag_df, field='Prep_Use_Flag'):
     flag_df.sort_values('Observation_Type', inplace=True)
 
     return flag_df
+
+
+def plot_hist_omf(bgd, ana, v, typ, ax=None, fontsize=12, min_pct=0.2, max_pct=99.8, 
+                  hist_kw={'density':True}):
+    """
+    Plot histogram of O-B and O-A values using GSI diag files for a single ob typ and variable
+
+    Parameters
+    ----------
+    bgd : pd.DataFrame
+        GSI ges diag containing O-Bs
+    ana : pd.DataFrame
+        GSI ana diag containing O-As
+    v : string
+        Variable to plot (Options: t, q, ps, pw, u, v)
+    typ : integer
+        Observation type to plot (3-digit number)
+    ax : matplotlib.axes, optional 
+        Axes to add plot to
+    fontsize : integer, optional
+        Font size for labels
+    min_pct : float
+        Percentile used for histogram min
+    max_pct : float
+        Percentile used for histogram max
+    hist_kw : dictionary
+        Additional keyword arguments passed to matplotlib.pyplot.hist()
+
+    Returns
+    -------
+    matplotlib.axes with histogram added
+    If ax=None, then a matplotlib.pyplot.figure() object will also be returned
+
+    """
+
+    # Create axes if not explicitly passed
+    return_fig = False
+    if ax is None:
+        return_fig = True
+        fig, ax = plt.subplots(nrows=1, ncols=1)
+
+    # Extract desired variable and ob type
+    v_true = v
+    omf_field = 'Obs_Minus_Forecast'
+    if v in ['u', 'v']: 
+        v_true = 'uv'
+        omf_field = f"{v}_Obs_Minus_Forecast"
+    data = {}
+    for key, df in zip(['bgd', 'ana'], [bgd, ana]):
+        data[key] = df.loc[(df['Observation_Class'] == v_true) & (df['Observation_Type'] == typ)]
+
+    # Determine bins to use
+    upper = max(np.percentile(data['bgd'][omf_field], max_pct),
+                np.percentile(data['ana'][omf_field], max_pct))
+    lower = min(np.percentile(data['bgd'][omf_field], min_pct),
+                np.percentile(data['ana'][omf_field], min_pct))
+    bins = np.linspace(lower, upper, 30)
+
+    # Make plot
+    for key, c, l in zip(['bgd', 'ana'], ['b', 'r'], ['O$-$B (all)', 'O$-$A (assim)']):
+        ax.hist(data[key].loc[data[key]['Use_Flag'] == 1, omf_field], 
+                bins=bins, color=c, alpha=0.6, label=l, **hist_kw)
+    ax.grid()
+    ax.legend()
+    ax.set_xlabel(v, size=fontsize)
+    ylabel = 'counts'
+    if 'density' in hist_kw:
+        if hist_kw['density']: ylabel = 'density'
+    ax.set_ylabel(ylabel, size=fontsize)
+    ax.set_title(f"{typ} (n_tot = {len(data['bgd'])}, n_assim = {(data['ana']['Use_Flag'] == 1).sum()})",
+                 size=(fontsize+4))
+
+    if return_fig:
+        return fig, ax
+    else:
+        return ax
 
 
 def interpolate_to_obs(diag_df, lat2d, lon2d, field2d, method='nearest'):
